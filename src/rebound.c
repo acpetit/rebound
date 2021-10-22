@@ -64,11 +64,16 @@
 const int reb_max_messages_length = 1024;   // needs to be constant expression for array size
 const int reb_max_messages_N = 10;
 const char* reb_build_str = __DATE__ " " __TIME__;  // Date and time build string. 
-const char* reb_version_str = "3.12.2";         // **VERSIONLINE** This line gets updated automatically. Do not edit manually.
+const char* reb_version_str = "3.18.0";         // **VERSIONLINE** This line gets updated automatically. Do not edit manually.
 const char* reb_githash_str = STRINGIFY(GITHASH);             // This line gets updated automatically. Do not edit manually.
 
 static int reb_error_message_waiting(struct reb_simulation* const r);
 
+void reb_steps(struct reb_simulation* const r, unsigned int N_steps){
+    for (unsigned int i=0;i<N_steps;i++){
+        reb_step(r);
+    }
+}
 void reb_step(struct reb_simulation* const r){
     // Update walltime
     struct timeval time_beginning;
@@ -325,6 +330,7 @@ void reb_free_pointers(struct reb_simulation* const r){
     if (r->extras_cleanup){
         r->extras_cleanup(r);
     }
+    free(r->var_config);
 }
 
 void reb_reset_temporary_pointers(struct reb_simulation* const r){
@@ -463,7 +469,7 @@ void reb_clear_pre_post_pointers(struct reb_simulation* const r){
 }
 
 void reb_init_simulation(struct reb_simulation* r){
-    reb_tools_init_srand();
+    reb_tools_init_srand(r);
     reb_reset_temporary_pointers(r);
     reb_reset_function_pointers(r);
     r->t        = 0; 
@@ -488,6 +494,7 @@ void reb_init_simulation(struct reb_simulation* r){
     r->N_lookup = 0;
     r->allocatedN_lookup = 0;
     r->testparticle_type = 0;   
+    r->testparticle_hidewarnings = 0;
     r->N_var    = 0;    
     r->var_config_N = 0;    
     r->var_config   = NULL;     
@@ -513,7 +520,7 @@ void reb_init_simulation(struct reb_simulation* r){
     
     r->simulationarchive_size_first    = 0;    
     r->simulationarchive_size_snapshot = 0;    
-    r->simulationarchive_version       = 2;    
+    r->simulationarchive_version       = 3;
     r->simulationarchive_auto_interval = 0.;    
     r->simulationarchive_auto_walltime = 0.;    
     r->simulationarchive_auto_step     = 0;    
@@ -625,13 +632,13 @@ int reb_check_exit(struct reb_simulation* const r, const double tmax, double* la
     }else if(tmax!=INFINITY){
         if(r->exact_finish_time==1){
             if ((r->t+r->dt)*dtsign>=tmax*dtsign){  // Next step would overshoot
-                double tscale = 1e-12*fabs(tmax);   // Find order of magnitude for time
-                if (tscale<1e-200){     // Failsafe if tmax==0.
-                    tscale = 1e-12;
-                }
                 if (r->t==tmax){
                     r->status = REB_EXIT_SUCCESS;
                 }else if(r->status == REB_RUNNING_LAST_STEP){
+                    double tscale = 1e-12*fabs(tmax);   // Find order of magnitude for time
+                    if (tscale<1e-200){     // Failsafe if tmax==0.
+                        tscale = 1e-12;
+                    }
                     if (fabs(r->t-tmax)<tscale){
                         r->status = REB_EXIT_SUCCESS;
                     }else{
@@ -746,6 +753,10 @@ static void* reb_integrate_raw(void* args){
 
     double last_full_dt = r->dt; // need to store r->dt in case timestep gets artificially shrunk to meet exact_finish_time=1
     r->dt_last_done = 0.; // Reset in case first timestep attempt will fail
+
+    if (r->testparticle_hidewarnings==0 && reb_particle_check_testparticles(r)){
+        reb_warning(r,"At least one test particle (type 0) has finite mass. This might lead to unexpected behaviour. Set testparticle_hidewarnings=1 to hide this warning.");
+    }
 
     r->status = REB_RUNNING;
     reb_run_heartbeat(r);

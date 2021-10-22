@@ -39,53 +39,6 @@
 #include "communication_mpi.h"
 #endif
 
-double reb_read_double(int argc, char** argv, const char* argument, double _default){
-    char* value = reb_read_char(argc,argv,argument);
-    if (value){
-        return atof(value);
-    }
-    return _default;
-}
-
-int reb_read_int(int argc, char** argv, const char* argument, int _default){
-    char* value = reb_read_char(argc,argv,argument);
-    if (value){
-        return atoi(value);
-    }
-    return _default;
-}
-
-
-char* reb_read_char(int argc, char** argv, const char* argument){
-    opterr = 0;
-    optind = 1;
-    while (1) {
-        struct option long_options[] = {
-            {NULL, required_argument, 0, 'a'},
-            {0,0,0,0}
-        };
-
-        long_options[0].name = argument;
-
-        /* getopt_long stores the option index here.   */
-        int option_index = 0;
-        //              short options. format abc:d::
-        int c = getopt_long (argc, argv, "", long_options, &option_index);
-
-        /* Detect the end of the options.   */
-        if (c == -1) break;
-
-        switch (c){
-            case 'a':
-                return optarg;
-                break;
-            default:
-                break;
-        }
-    }
-    return NULL;
-}
-
 static size_t reb_fread(void *restrict ptr, size_t size, size_t nitems, FILE *restrict stream, char **restrict mem_stream){
     if (mem_stream!=NULL){
         // read from memory
@@ -175,6 +128,7 @@ int reb_input_field(struct reb_simulation* r, FILE* inf, enum reb_input_binary_m
         CASE(VARCONFIGN,         &r->var_config_N);
         CASE(NACTIVE,            &r->N_active);
         CASE(TESTPARTICLETYPE,   &r->testparticle_type);
+        CASE(TESTPARTICLEHIDEWARNINGS,   &r->testparticle_hidewarnings);
         CASE(HASHCTR,            &r->hash_ctr);
         CASE(OPENINGANGLE2,      &r->opening_angle2);
         CASE(STATUS,             &r->status);
@@ -265,6 +219,7 @@ int reb_input_field(struct reb_simulation* r, FILE* inf, enum reb_input_binary_m
         CASE(EOS_N,              &r->ri_eos.n);
         CASE(EOS_SAFEMODE,       &r->ri_eos.safe_mode);
         CASE(EOS_ISSYNCHRON,     &r->ri_eos.is_synchronized);
+        CASE(RAND_SEED,          &r->rand_seed);
         // temporary solution for depreciated SABA k and corrector variables.
         // can be removed in future versions
         case 138: 
@@ -441,6 +396,9 @@ struct reb_simulation* reb_input_process_warnings(struct reb_simulation* r, enum
         if (r) free(r);
         return NULL;
     }
+    if (warnings & REB_INPUT_BINARY_WARNING_CORRUPTFILE){
+        reb_warning(r,"The binary file seems to be corrupted. An attempt has been made to read the uncorrupted parts of it.");
+    }
     return r;
 }
 
@@ -449,7 +407,7 @@ struct reb_simulation* reb_create_simulation_from_binary(char* filename){
     struct reb_simulation* r = reb_create_simulation();
     
     struct reb_simulationarchive* sa = malloc(sizeof(struct reb_simulationarchive)); 
-    reb_read_simulationarchive_with_messages(sa, filename, &warnings);
+    reb_read_simulationarchive_with_messages(sa, filename, NULL, &warnings);
     if (warnings & REB_INPUT_BINARY_ERROR_NOFILE){
         // Don't output an error if file does not exist, just return NULL.
         free(sa);

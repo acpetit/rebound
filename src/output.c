@@ -264,6 +264,7 @@ void reb_output_binary_to_stream(struct reb_simulation* r, char** bufp, size_t* 
     WRITE_FIELD(VARCONFIGN,         &r->var_config_N,                   sizeof(int));
     WRITE_FIELD(NACTIVE,            &r->N_active,                       sizeof(int));
     WRITE_FIELD(TESTPARTICLETYPE,   &r->testparticle_type,              sizeof(int));
+    WRITE_FIELD(TESTPARTICLEHIDEWARNINGS, &r->testparticle_hidewarnings,sizeof(int));
     WRITE_FIELD(HASHCTR,            &r->hash_ctr,                       sizeof(int));
     WRITE_FIELD(OPENINGANGLE2,      &r->opening_angle2,                 sizeof(double));
     WRITE_FIELD(STATUS,             &r->status,                         sizeof(int));
@@ -360,6 +361,7 @@ void reb_output_binary_to_stream(struct reb_simulation* r, char** bufp, size_t* 
     WRITE_FIELD(EOS_N,              &r->ri_eos.n,                       sizeof(unsigned int));
     WRITE_FIELD(EOS_SAFEMODE,       &r->ri_eos.safe_mode,               sizeof(unsigned int));
     WRITE_FIELD(EOS_ISSYNCHRON,     &r->ri_eos.is_synchronized,         sizeof(unsigned int));
+    WRITE_FIELD(RAND_SEED,          &r->rand_seed,                      sizeof(unsigned int));
     int functionpointersused = 0;
     if (r->coefficient_of_restitution ||
         r->collision_resolve ||
@@ -429,12 +431,21 @@ void reb_output_binary_to_stream(struct reb_simulation* r, char** bufp, size_t* 
         }
     }
     // To output size of binary file, need to calculate it first. 
-    r->simulationarchive_size_first = (*sizep)+sizeof(struct reb_binary_field)*2+sizeof(long)+sizeof(struct reb_simulationarchive_blob);
+    if (r->simulationarchive_version<3){ // to be removed in a future release
+        r->simulationarchive_size_first = (*sizep)+sizeof(struct reb_binary_field)*2+sizeof(long)+sizeof(struct reb_simulationarchive_blob16);
+    }else{
+        r->simulationarchive_size_first = (*sizep)+sizeof(struct reb_binary_field)*2+sizeof(long)+sizeof(struct reb_simulationarchive_blob);
+    }
     WRITE_FIELD(SASIZEFIRST,        &r->simulationarchive_size_first,   sizeof(long));
     int end_null = 0;
     WRITE_FIELD(END, &end_null, 0);
-    struct reb_simulationarchive_blob blob = {0};
-    reb_output_stream_write(bufp, &allocatedsize, sizep, &blob, sizeof(struct reb_simulationarchive_blob));
+    if (r->simulationarchive_version<3){ // to be removed in a future release
+        struct reb_simulationarchive_blob16 blob = {0};
+        reb_output_stream_write(bufp, &allocatedsize, sizep, &blob, sizeof(struct reb_simulationarchive_blob16));
+    }else{
+        struct reb_simulationarchive_blob blob = {0};
+        reb_output_stream_write(bufp, &allocatedsize, sizep, &blob, sizeof(struct reb_simulationarchive_blob));
+    }
 }
 
 void reb_output_binary(struct reb_simulation* r, const char* filename){

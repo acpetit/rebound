@@ -19,7 +19,8 @@ import os
 import warnings
 pymodulepath = os.path.dirname(__file__)
 from ctypes import cdll, c_char_p
-clibrebound = cdll.LoadLibrary(pymodulepath+"/../librebound"+suffix)
+__libpath__ = pymodulepath+"/../librebound"+suffix
+clibrebound = cdll.LoadLibrary(__libpath__)
 
 # Version
 __version__ = c_char_p.in_dll(clibrebound, "reb_version_str").value.decode('ascii')
@@ -32,16 +33,17 @@ __githash__ = c_char_p.in_dll(clibrebound, "reb_githash_str").value.decode('asci
 
 # Check for version
 try:
+    import pkg_resources
     moduleversion = pkg_resources.require("rebound")[0].version
     libreboundversion = __version__
     if moduleversion != libreboundversion:
         warnings.warn("WARNING: python module and librebound have different version numbers: '%s' vs '%s'.\n" %(moduleversion, libreboundversion), ImportWarning)
 except:
-    # Might fails on python3 versions, but not important
+    # Might fail in some python3 setups, but not important
     pass
 
-# Exceptions    
-class SimulationError(Exception):  
+# Exceptions
+class SimulationError(Exception):
     """The simulation exited with a generic error."""
     pass
 
@@ -57,23 +59,23 @@ class Collision(Exception):
 
 class Escape(Exception):
     """The simulation exited because a particle has been se encounter has been detected.
-    You may want to search for the particle with the largest distance from the 
+    You may want to search for the particle with the largest distance from the
     origin and remove it from the simulation."""
     pass
 
 class NoParticles(Exception):
     """The simulation exited because no particles are left in the simulation."""
     pass
-    
+
 class ParticleNotFound(Exception):
     """Particle was not found in the simulation."""
     pass
 
-from .simulation import Simulation, Orbit, Variation, reb_simulation_integrator_saba, reb_simulation_integrator_whfast, reb_simulation_integrator_sei, reb_simulation_integrator_mercurius
+from .tools import hash, mod2pi, M_to_f, E_to_f, M_to_E
+from .simulation import Simulation, Orbit, Variation, reb_simulation_integrator_saba, reb_simulation_integrator_whfast, reb_simulation_integrator_sei, reb_simulation_integrator_mercurius, reb_simulation_integrator_ias15
 from .particle import Particle
 from .plotting import OrbitPlot
-from .tools import hash
 from .simulationarchive import SimulationArchive
 from .interruptible_pool import InterruptiblePool
 
-__all__ = ["__version__", "__build__", "__githash__", "SimulationArchive", "Simulation", "Orbit", "OrbitPlot", "Particle", "SimulationError", "Encounter", "Collision", "Escape", "NoParticles", "ParticleNotFound", "InterruptiblePool","Variation", "reb_simulation_integrator_whfast", "reb_simulation_integrator_ias15", "reb_simulation_integrator_saba", "reb_simulation_integrator_sei","reb_simulation_integrator_mercurius", "clibrebound"]
+__all__ = ["__libpath__", "__version__", "__build__", "__githash__", "SimulationArchive", "Simulation", "Orbit", "OrbitPlot", "Particle", "SimulationError", "Encounter", "Collision", "Escape", "NoParticles", "ParticleNotFound", "InterruptiblePool","Variation", "reb_simulation_integrator_whfast", "reb_simulation_integrator_ias15", "reb_simulation_integrator_saba", "reb_simulation_integrator_sei","reb_simulation_integrator_mercurius", "clibrebound", "mod2pi", "M_to_f", "E_to_f", "M_to_E"]

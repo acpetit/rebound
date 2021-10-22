@@ -53,6 +53,30 @@ double reb_integrator_mercurius_L_mercury(const struct reb_simulation* const r, 
     }
 }
 
+double reb_integrator_mercurius_L_C4(const struct reb_simulation* const r, double d, double dcrit){
+    // This is the changeover function C4 proposed by Hernandez (2019)
+    double y = (d-0.1*dcrit)/(0.9*dcrit);
+    if (y<0.){
+        return 0.;
+    }else if (y>1.){
+        return 1.;
+    }else{
+        return (70.*y*y*y*y -315.*y*y*y +540.*y*y -420.*y +126.)*y*y*y*y*y;
+    }
+}
+
+double reb_integrator_mercurius_L_C5(const struct reb_simulation* const r, double d, double dcrit){
+    // This is the changeover function C5 proposed by Hernandez (2019)
+    double y = (d-0.1*dcrit)/(0.9*dcrit);
+    if (y<0.){
+        return 0.;
+    }else if (y>1.){
+        return 1.;
+    }else{
+        return (-252.*y*y*y*y*y +1386.*y*y*y*y -3080.*y*y*y +3465.*y*y -1980.*y +462.)*y*y*y*y*y*y;
+    }
+}
+
 static double f(double x){
     if (x<0) return 0;
     return exp(-1./x);
@@ -159,6 +183,11 @@ static void reb_mercurius_encounter_predict(struct reb_simulation* const r){
     const double dt = r->dt;
     rim->encounterN = 1;
     rim->encounter_map[0] = 1;
+    if (r->testparticle_type==1){
+        rim->tponly_encounter = 0; // testparticles affect massive particles
+    }else{
+        rim->tponly_encounter = 1;
+    }
     for (int i=1; i<N; i++){
         rim->encounter_map[i] = 0;
     }
@@ -207,7 +236,9 @@ static void reb_mercurius_encounter_predict(struct reb_simulation* const r){
                 rmin = MIN(MAX(rmin2,0.),rmin);
             }
 
-            if (sqrt(rmin)< 1.1*MAX(dcrit[i],dcrit[j])){
+            double dcritmax2 = MAX(dcrit[i],dcrit[j]);
+            dcritmax2 *= 1.21*dcritmax2;
+            if (rmin < dcritmax2){
                 if (rim->encounter_map[i]==0){
                     rim->encounter_map[i] = i;
                     rim->encounterN++;
@@ -215,6 +246,9 @@ static void reb_mercurius_encounter_predict(struct reb_simulation* const r){
                 if (rim->encounter_map[j]==0){
                     rim->encounter_map[j] = j;
                     rim->encounterN++;
+                }
+                if (j<N_active){ // Two massive particles have a close encounter
+                    rim->tponly_encounter = 0;
                 }
             }
         }
@@ -276,11 +310,17 @@ static void reb_mercurius_encounter_step(struct reb_simulation* const r, const d
     rim->encounterNactive = 0;
     for (unsigned int i=0; i<r->N; i++){
         if(rim->encounter_map[i]){  
-            r->particles[i] = rim->particles_backup[i]; // use coordinates before whfast step
+            struct reb_particle tmp = r->particles[i];      // Copy for potential use for tponly_encounter
+            r->particles[i] = rim->particles_backup[i];     // Use coordinates before whfast step
             rim->encounter_map[i_enc] = i;
             i_enc++;
             if (r->N_active==-1 || i<r->N_active){
                 rim->encounterNactive++;
+                if (rim->tponly_encounter){
+                    rim->particles_backup[i] = tmp;         // Make copy of particles after the kepler step.
+                                                            // used to restore the massive objects' states in the case
+                                                            // of only massless test-particle encounters
+                }
             }
         }
     }
@@ -342,12 +382,49 @@ static void reb_mercurius_encounter_step(struct reb_simulation* const r, const d
         }
     }
 
+    // if only test particles encountered massive bodies, reset the
+    // massive body coordinates to their post Kepler step state
+    if(rim->tponly_encounter){
+        for (int i=1;i<rim->encounterNactive;i++){
+            unsigned int mi = rim->encounter_map[i];
+            r->particles[mi] = rim->particles_backup[mi];
+        }
+    }
+
     // Reset constant for global particles
     r->t = old_t;
     r->dt = old_dt;
     rim->mode = 0;
 
 }
+
+double reb_integrator_mercurius_calculate_dcrit_for_particle(struct reb_simulation* r, unsigned int i){
+    struct reb_simulation_integrator_mercurius* const rim = &(r->ri_mercurius);
+    const double m0 = r->particles[0].m;
+    const double dx  = r->particles[i].x;  // in dh
+    const double dy  = r->particles[i].y;
+    const double dz  = r->particles[i].z;
+    const double dvx = r->particles[i].vx - r->particles[0].vx; 
+    const double dvy = r->particles[i].vy - r->particles[0].vy; 
+    const double dvz = r->particles[i].vz - r->particles[0].vz; 
+    const double _r = sqrt(dx*dx + dy*dy + dz*dz);
+    const double v2 = dvx*dvx + dvy*dvy + dvz*dvz;
+
+    const double GM = r->G*(m0+r->particles[i].m);
+    const double a = GM*_r / (2.*GM - _r*v2);
+    const double vc = sqrt(GM/fabs(a));
+    double dcrit = 0;
+    // Criteria 1: average velocity
+    dcrit = MAX(dcrit, vc*0.4*r->dt);
+    // Criteria 2: current velocity
+    dcrit = MAX(dcrit, sqrt(v2)*0.4*r->dt);
+    // Criteria 3: Hill radius
+    dcrit = MAX(dcrit, rim->hillfac*a*cbrt(r->particles[i].m/(3.*r->particles[0].m)));
+    // Criteria 4: physical radius
+    dcrit = MAX(dcrit, 2.*r->particles[i].r);
+    return dcrit;
+}
+
 
 void reb_integrator_mercurius_part1(struct reb_simulation* r){
     if (r->var_config_N){
@@ -392,31 +469,8 @@ void reb_integrator_mercurius_part1(struct reb_simulation* r){
             reb_warning(r,"MERCURIUS: Recalculating dcrit but pos/vel were not synchronized before.");
         }
         rim->dcrit[0] = 2.*r->particles[0].r; // central object only uses physical radius
-        const double m0 = r->particles[0].m;
         for (int i=1;i<N;i++){
-            const double dx  = r->particles[i].x;  // in dh
-            const double dy  = r->particles[i].y;
-            const double dz  = r->particles[i].z;
-            const double dvx = r->particles[i].vx - r->particles[0].vx; 
-            const double dvy = r->particles[i].vy - r->particles[0].vy; 
-            const double dvz = r->particles[i].vz - r->particles[0].vz; 
-            const double _r = sqrt(dx*dx + dy*dy + dz*dz);
-            const double v2 = dvx*dvx + dvy*dvy + dvz*dvz;
-
-            const double GM = r->G*(m0+r->particles[i].m);
-            const double a = GM*_r / (2.*GM - _r*v2);
-            const double vc = sqrt(GM/fabs(a));
-            double dcrit = 0;
-            // Criteria 1: average velocity
-            dcrit = MAX(dcrit, vc*0.4*r->dt);
-            // Criteria 2: current velocity
-            dcrit = MAX(dcrit, sqrt(v2)*0.4*r->dt);
-            // Criteria 3: Hill radius
-            dcrit = MAX(dcrit, rim->hillfac*a*pow(r->particles[i].m/(3.*r->particles[0].m),1./3.));
-            // Criteria 4: physical radius
-            dcrit = MAX(dcrit, 2.*r->particles[i].r);
-
-            rim->dcrit[i] = dcrit;
+            rim->dcrit[i] = reb_integrator_mercurius_calculate_dcrit_for_particle(r, i);
         }
     }
     
@@ -457,7 +511,7 @@ void reb_integrator_mercurius_part2(struct reb_simulation* const r){
     // later by encounter step.
     memcpy(rim->particles_backup,r->particles,N*sizeof(struct reb_particle)); 
     reb_integrator_mercurius_kepler_step(r,r->dt);
-    
+
     reb_mercurius_encounter_predict(r);
    
     reb_mercurius_encounter_step(r,r->dt);
@@ -498,6 +552,7 @@ void reb_integrator_mercurius_reset(struct reb_simulation* r){
     r->ri_mercurius.encounterN = 0;
     r->ri_mercurius.encounterNactive = 0;
     r->ri_mercurius.hillfac = 3;
+    r->ri_mercurius.tponly_encounter = 0;
     r->ri_mercurius.recalculate_coordinates_this_timestep = 0;
     // Internal arrays (only used within one timestep)
     free(r->ri_mercurius.particles_backup);
