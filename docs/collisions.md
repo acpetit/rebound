@@ -3,9 +3,8 @@
 ## Detecting collisions
 
 REBOUND comes with several collision detection modules. 
-These modules check for physical collisions, not close encounters.
-Particles need to have a finite radius for collisions to occur.
-By default, collision detection is turned off.
+These modules check for physical collisions (the distance between two particles is closer than the sum of the radii), not close encounters.
+For a collision to occur between two particles, at least one of them needs to have a finite radius and collision detection needs to be turned on (it is turned off by default).
 
 
 ### No collisions
@@ -13,7 +12,7 @@ By default REBOUND does not search for collisions.
 You can manually set the collision routine to NONE with the following code:
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
+    struct reb_simulation* r = reb_simulation_create();
     r->collision = REB_COLLISION_NONE;
     ```
 
@@ -29,7 +28,7 @@ It checks for instantaneous overlaps between every particle pair.
 The following code enables this module:
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
+    struct reb_simulation* r = reb_simulation_create();
     r->collision = REB_COLLISION_DIRECT;
     ```
 
@@ -51,7 +50,7 @@ It assumes particles travelled along straight lines during the timestep and migh
 
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
+    struct reb_simulation* r = reb_simulation_create();
     r->collision = REB_COLLISION_LINE;
     ```
 
@@ -69,8 +68,8 @@ Below is an example on how to enable the tree based collision search.
 
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
-    reb_configure_box(r, 10, 1, 1, 1); # confine the simulation to a box of size 10
+    struct reb_simulation* r = reb_simulation_create();
+    reb_simulation_configure_box(r, 10, 1, 1, 1); # confine the simulation to a box of size 10
     r->collision = REB_COLLISION_TREE;
     ```
 
@@ -92,8 +91,8 @@ Below is an example on how to enable the line-tree collision search.
 
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
-    reb_configure_box(r, 10, 1, 1, 1); # confine the simulation to a box of size 10
+    struct reb_simulation* r = reb_simulation_create();
+    reb_simulation_configure_box(r, 10, 1, 1, 1); # confine the simulation to a box of size 10
     r->collision = REB_COLLISION_LINETREE;
     ```
 
@@ -117,14 +116,14 @@ You can set this pointer to a function that should be called when a collision oc
 
 ### Halt
 
-This function resolves a collision by simply halting the integration and setting the `status` flag in the simulation to `REB_EXIT_COLLISION`. 
+This function resolves a collision by simply halting the integration and setting the `status` flag in the simulation to `REB_STATUS_COLLISION`. 
 In python this will raise the `Collision` exception.
 This is the default.
 It can also be set manually using the following syntax:
 
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
+    struct reb_simulation* r = reb_simulation_create();
     r->collision = REB_COLLISION_DIRECT;
     r->collision_resolve = reb_collision_resolve_halt;
     ```
@@ -138,8 +137,7 @@ It can also be set manually using the following syntax:
 
 ### Hard-sphere
 
-This assumes a hard-sphere collision. 
-This uses the `coefficient_of_restitution` parameter in `struct reb_simulation`. 
+This assumes a hard-sphere collision and uses the `coefficient_of_restitution` function pointer in `struct reb_simulation` to determine coefficient of restitution which can be velocity dependent
 It conserves momentum and mass.
 Depending on the coefficient of restitution, it also conserves energy.
 
@@ -147,17 +145,26 @@ The following example shows how to set up a hard-sphere collision resolve functi
 
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
+    double coefficient_of_restitution_constant(const struct reb_simulation* const r, double v){
+        // v is the normal impact velocity.
+        // Here, we just use a constant coefficient of restitution
+        return 0.5;
+    }
+    struct reb_simulation* r = reb_simulation_create();
     r->collision = REB_COLLISION_DIRECT;
-    r->coefficient_of_resitution = 0.5;
+    r->coefficient_of_restitution = coefficient_of_restitution_constant;
     r->collision_resolve = reb_collision_resolve_hardsphere;
     ```
 
 === "Python"
     ```python
+    def coefficient_of_restitution_constant(r, v):
+        # v is the normal impact velocity.
+        # Here, we just use a constant coefficient of restitution
+        return 0.5
     sim = rebound.Simulation()
     sim.collision = "direct"
-    sim.coefficient_of_resitution = 0.5
+    sim.coefficient_of_restitution = coefficient_of_restitution_constant
     sim.collision_resolve = "hardsphere"
     ```
 
@@ -172,7 +179,7 @@ The following example shows how to set up a hard-sphere collision resolve functi
 
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
+    struct reb_simulation* r = reb_simulation_create();
     r->collision = REB_COLLISION_DIRECT;
     r->collision_resolve = reb_collision_resolve_merge;
     ```
@@ -187,26 +194,26 @@ The following example shows how to set up a hard-sphere collision resolve functi
 ### Custom function
 You can write your own collision resolve function. 
 In your function, you can update the properties of the particles involved in the collision.
-The return value of your function determines if a particle gets removed.
+The return value of your function (of type `enum REB_COLLISION_RESOLVE_OUTCOME`) determines if a particle gets removed.
 
-- `0`: don't remove either particle from the simulation
-- `1`: remove the first particle (`p1`) from the simulation
-- `2`: remove the second particle (`p2`) from the simulation
-- `3`: remove both particles from the simulation
+- `REB_COLLISION_RESOLVE_OUTCOME_REMOVE_NONE` or `0`: don't remove either particle from the simulation
+- `REB_COLLISION_RESOLVE_OUTCOME_REMOVE_P1` or `1`: remove the first particle (`p1`) from the simulation
+- `REB_COLLISION_RESOLVE_OUTCOME_REMOVE_P2` or `2`: remove the second particle (`p2`) from the simulation
+- `REB_COLLISION_RESOLVE_OUTCOME_REMOVE_BOTH` or `3`: remove both particles from the simulation
 
 Here is a short example on how to write a simple custom collision resolve function:
 
 === "C"
     ```c
-    int collision_print_only(struct reb_simulation* const r, struct reb_collision c){
+    enum REB_COLLISION_RESOLVE_OUTCOME collision_print_only(struct reb_simulation* const r, struct reb_collision c){
         printf("%f\t", r->p);
         printf("%f\t", r->particles[c.p1].x);    // x position of particle 1
         printf("%f\n", r->particles[c.p2].x);    // x position of particle 2
-        return 0; // Don't remove either particle
+        return REB_COLLISION_RESOLVE_OUTCOME_REMOVE_NONE; // Don't remove either particle
     }
 
     int main(int argc, char* argv[]){
-        struct reb_simulation* r = reb_create_simulation();
+        struct reb_simulation* r = reb_simulation_create();
         r->collision = REB_COLLISION_DIRECT;
         r->collision_resolve = collision_print_only;
     }
@@ -235,5 +242,5 @@ It contains information about which particles are involved in the collision and,
 `int p2`
 :   Index corresponding to one of the colliding particles
 
-`struct reb_ghostbox gb`
+`struct reb_vec6d gb`
 :   Shift of particle p1 due to a collision across periodic and shearing sheet boundaries. All entries are zero if a normal collision occurs.

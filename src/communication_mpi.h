@@ -41,12 +41,12 @@
 #include "mpi.h"
 
 /**
- * \defgroup mpistructures Data structures for MPI comminication.
+ * \defgroup mpistructures Data structures for MPI communication.
  * These buffers are used for communicating with other nodes.
  * Each buffer is an array with the number of elements being equal
  * to the number of nodes. 
  * The number of particles/cells that have to be send to every other
- * node is saved in particles_send_N/tree_essential_send_N. The number
+ * node is saved in N_particles_send/N_tree_essential_send. The number
  * are different every time and have to be communicated to the other 
  * nodes before the actual communication of the particles/cells.
  * @{
@@ -66,6 +66,12 @@ void reb_communication_mpi_init(struct reb_simulation* const r, int argc, char**
  * to the current simulation.
  */
 void reb_communication_mpi_distribute_particles(struct reb_simulation* const r);
+
+/**
+ * Send all particles to all nodes. Does not add particles to simulation.
+ * Needs manual cleanup. Used for energy calculation.
+ */
+void reb_communication_mpi_distribute_particles_all_to_all(struct reb_simulation* const r);
 
 /**
  * Places a particle in the send queue.  

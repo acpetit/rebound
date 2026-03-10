@@ -24,22 +24,179 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <math.h>
-#include <time.h>
 #include <string.h>
-#include <sys/time.h>
+#include <stddef.h>
 #include "particle.h"
 #include "rebound.h"
 #include "tools.h"
 #include "output.h"
 #include "integrator.h"
 #include "integrator_sei.h"
+
 #include "input.h"
 #ifdef MPI
 #include "communication_mpi.h"
 #include "mpi.h"
 #endif // MPI
+
+
+// List of REBOUND parameters to be written to a file.
+// Modify this list if you wish to input/output additional fields in the reb_simulation structure.
+const struct reb_binary_field_descriptor reb_binary_field_descriptor_list[]= {
+    { 0,  REB_DOUBLE,       "t",                            offsetof(struct reb_simulation, t), 0, 0},
+    { 1,  REB_DOUBLE,       "G",                            offsetof(struct reb_simulation, G), 0, 0},
+    { 2,  REB_DOUBLE,       "softening",                    offsetof(struct reb_simulation, softening), 0, 0},
+    { 3,  REB_DOUBLE,       "dt",                           offsetof(struct reb_simulation, dt), 0, 0},
+    { 4,  REB_UINT,         "N",                            offsetof(struct reb_simulation, N), 0, 0},
+    { 5,  REB_INT,          "N_var",                        offsetof(struct reb_simulation, N_var), 0, 0},
+    // 6 Used to be varconfig
+    { 7,  REB_INT,          "N_active",                     offsetof(struct reb_simulation, N_active), 0, 0},
+    { 8,  REB_INT,          "testparticle_type",            offsetof(struct reb_simulation, testparticle_type), 0, 0},
+    { 10, REB_DOUBLE,       "opening_angle2",               offsetof(struct reb_simulation, opening_angle2), 0, 0},
+    { 11, REB_INT,          "status",                       offsetof(struct reb_simulation, status), 0, 0},
+    { 12, REB_INT,          "exact_finish_time",            offsetof(struct reb_simulation, exact_finish_time), 0, 0},
+    { 13, REB_UINT,         "force_is_velocity_dependent",  offsetof(struct reb_simulation, force_is_velocity_dependent), 0, 0},
+    { 14, REB_UINT,         "gravity_ignore_terms",         offsetof(struct reb_simulation, gravity_ignore_terms), 0, 0},
+    { 15, REB_DOUBLE,       "output_timing_last",           offsetof(struct reb_simulation, output_timing_last), 0, 0},
+    { 16, REB_INT,          "save_messages",                offsetof(struct reb_simulation, save_messages), 0, 0},
+    { 17, REB_DOUBLE,       "exit_max_distance",            offsetof(struct reb_simulation, exit_max_distance), 0, 0},
+    { 18, REB_DOUBLE,       "exit_min_distance",            offsetof(struct reb_simulation, exit_min_distance), 0, 0},
+    { 19, REB_DOUBLE,       "usleep",                       offsetof(struct reb_simulation, usleep), 0, 0},
+    { 20, REB_INT,          "track_energy_offset",          offsetof(struct reb_simulation, track_energy_offset), 0, 0},
+    { 21, REB_DOUBLE,       "energy_offset",                offsetof(struct reb_simulation, energy_offset), 0, 0},
+    { 22, REB_VEC3D,        "boxsize",                      offsetof(struct reb_simulation, boxsize), 0, 0},
+    { 23, REB_DOUBLE,       "boxsize_max",                  offsetof(struct reb_simulation, boxsize_max), 0, 0},
+    { 24, REB_DOUBLE,       "root_size",                    offsetof(struct reb_simulation, root_size), 0, 0},
+    { 25, REB_INT,          "N_root",                       offsetof(struct reb_simulation, N_root), 0, 0},
+    { 26, REB_INT,          "N_root_x",                      offsetof(struct reb_simulation, N_root_x), 0, 0},
+    { 27, REB_INT,          "N_root_y",                      offsetof(struct reb_simulation, N_root_y), 0, 0},
+    { 28, REB_INT,          "N_root_z",                      offsetof(struct reb_simulation, N_root_z), 0, 0},
+    { 29, REB_INT,          "N_ghost_x",                      offsetof(struct reb_simulation, N_ghost_x), 0, 0},
+    { 30, REB_INT,          "N_ghost_y",                      offsetof(struct reb_simulation, N_ghost_y), 0, 0},
+    { 31, REB_INT,          "N_ghost_z",                      offsetof(struct reb_simulation, N_ghost_z), 0, 0},
+    { 32, REB_INT,          "collision_resolve_keep_sorted",offsetof(struct reb_simulation, collision_resolve_keep_sorted), 0, 0},
+    { 33, REB_DOUBLE,       "minimum_collision_velocity",   offsetof(struct reb_simulation, minimum_collision_velocity), 0, 0},
+    { 34, REB_DOUBLE,       "collisions_plog",              offsetof(struct reb_simulation, collisions_plog), 0, 0},
+    { 36, REB_INT64,         "collisions_log_n",              offsetof(struct reb_simulation, collisions_log_n), 0, 0},
+    { 37, REB_INT,          "calculate_megno",              offsetof(struct reb_simulation, calculate_megno), 0, 0},
+    { 38, REB_DOUBLE,       "megno_Ys",                     offsetof(struct reb_simulation, megno_Ys), 0, 0},
+    { 39, REB_DOUBLE,       "megno_Yss",                    offsetof(struct reb_simulation, megno_Yss), 0, 0},
+    { 40, REB_DOUBLE,       "megno_cov_Yt",                 offsetof(struct reb_simulation, megno_cov_Yt), 0, 0},
+    { 41, REB_DOUBLE,       "megno_var_t",                  offsetof(struct reb_simulation, megno_var_t), 0, 0},
+    { 42, REB_DOUBLE,       "megno_mean_t",                 offsetof(struct reb_simulation, megno_mean_t), 0, 0},
+    { 43, REB_DOUBLE,       "megno_mean_Y",                 offsetof(struct reb_simulation, megno_mean_Y), 0, 0},
+    { 49, REB_DOUBLE,       "megno_initial_t",              offsetof(struct reb_simulation, megno_initial_t), 0, 0},
+    { 44, REB_INT64,         "megno_n",                      offsetof(struct reb_simulation, megno_n), 0, 0},
+    { 47, REB_DOUBLE,       "simulationarchive_auto_interval", offsetof(struct reb_simulation, simulationarchive_auto_interval), 0, 0},
+    { 102, REB_DOUBLE,      "simulationarchive_auto_walltime", offsetof(struct reb_simulation, simulationarchive_auto_walltime), 0, 0},
+    { 48, REB_DOUBLE,       "simulationarchive_next",       offsetof(struct reb_simulation, simulationarchive_next), 0, 0},
+    { 50, REB_INT,          "collision",                    offsetof(struct reb_simulation, collision), 0, 0},
+    { 51, REB_INT,          "integrator",                   offsetof(struct reb_simulation, integrator), 0, 0},
+    { 52, REB_INT,          "boundary",                     offsetof(struct reb_simulation, boundary), 0, 0},
+    { 53, REB_INT,          "gravity",                      offsetof(struct reb_simulation, gravity), 0, 0},
+    { 54, REB_DOUBLE,       "ri_sei.OMEGA",                 offsetof(struct reb_simulation, ri_sei.OMEGA), 0, 0},
+    { 55, REB_DOUBLE,       "ri_sei.OMEGAZ",                offsetof(struct reb_simulation, ri_sei.OMEGAZ), 0, 0},
+    { 56, REB_DOUBLE,       "ri_sei.lastdt",                offsetof(struct reb_simulation, ri_sei.lastdt), 0, 0},
+    { 57, REB_DOUBLE,       "ri_sei.sindt",                 offsetof(struct reb_simulation, ri_sei.sindt), 0, 0},
+    { 58, REB_DOUBLE,       "ri_sei.tandt",                 offsetof(struct reb_simulation, ri_sei.tandt), 0, 0},
+    { 59, REB_DOUBLE,       "ri_sei.sindtz",                offsetof(struct reb_simulation, ri_sei.sindtz), 0, 0},
+    { 60, REB_DOUBLE,       "ri_sei.tandtz",                offsetof(struct reb_simulation, ri_sei.tandtz), 0, 0},
+    { 61, REB_UINT,         "ri_whfast.corrector",          offsetof(struct reb_simulation, ri_whfast.corrector), 0, 0},
+    { 62, REB_UINT,         "ri_whfast.recalculate_coordinates_this_timestep", offsetof(struct reb_simulation, ri_whfast.recalculate_coordinates_this_timestep), 0, 0},
+    { 63, REB_UINT,         "ri_whfast.safe_mode",          offsetof(struct reb_simulation, ri_whfast.safe_mode), 0, 0},
+    { 64, REB_UINT,         "ri_whfast.keep_unsynchronized",offsetof(struct reb_simulation, ri_whfast.keep_unsynchronized), 0, 0},
+    { 65, REB_UINT,         "ri_whfast.is_synchronized",    offsetof(struct reb_simulation, ri_whfast.is_synchronized), 0, 0},
+    { 66, REB_UINT,         "ri_whfast.timestep_warning",   offsetof(struct reb_simulation, ri_whfast.timestep_warning), 0, 0},
+    { 69, REB_DOUBLE,       "ri_ias15.epsilon",             offsetof(struct reb_simulation, ri_ias15.epsilon), 0, 0},
+    { 70, REB_DOUBLE,       "ri_ias15.min_dt",              offsetof(struct reb_simulation, ri_ias15.min_dt), 0, 0},
+    { 71, REB_UINT,         "ri_ias15.adaptive_mode",       offsetof(struct reb_simulation, ri_ias15.adaptive_mode), 0, 0},
+    { 72, REB_UINT64,        "ri_ias15.iterations_max_exceeded", offsetof(struct reb_simulation, ri_ias15.iterations_max_exceeded), 0, 0},
+    { 85, REB_POINTER,      "particles",                    offsetof(struct reb_simulation, particles), offsetof(struct reb_simulation, N), sizeof(struct reb_particle)},
+    { 86, REB_POINTER,      "var_config",                   offsetof(struct reb_simulation, var_config), offsetof(struct reb_simulation, N_var_config), sizeof(struct reb_variational_configuration)},
+    { 87, REB_OTHER,        "functionpointers", 0, 0, 0},
+    { 89, REB_POINTER,      "ri_ias15.at",                  offsetof(struct reb_simulation, ri_ias15.at), offsetof(struct reb_simulation, ri_ias15.N_allocated), sizeof(double)},
+    { 90, REB_POINTER,      "ri_ias15.x0",                  offsetof(struct reb_simulation, ri_ias15.x0), offsetof(struct reb_simulation, ri_ias15.N_allocated), sizeof(double)},
+    { 91, REB_POINTER,      "ri_ias15.v0",                  offsetof(struct reb_simulation, ri_ias15.v0), offsetof(struct reb_simulation, ri_ias15.N_allocated), sizeof(double)},
+    { 92, REB_POINTER,      "ri_ias15.a0",                  offsetof(struct reb_simulation, ri_ias15.a0), offsetof(struct reb_simulation, ri_ias15.N_allocated), sizeof(double)},
+    { 93, REB_POINTER,      "ri_ias15.csx",                 offsetof(struct reb_simulation, ri_ias15.csx), offsetof(struct reb_simulation, ri_ias15.N_allocated), sizeof(double)},
+    { 94, REB_POINTER,      "ri_ias15.csv",                 offsetof(struct reb_simulation, ri_ias15.csv), offsetof(struct reb_simulation, ri_ias15.N_allocated), sizeof(double)},
+    { 95, REB_POINTER,      "ri_ias15.csa0",                offsetof(struct reb_simulation, ri_ias15.csa0), offsetof(struct reb_simulation, ri_ias15.N_allocated), sizeof(double)},
+    { 96, REB_DP7,          "ri_ias15.g",                   offsetof(struct reb_simulation, ri_ias15.g), offsetof(struct reb_simulation, ri_ias15.N_allocated), 7*sizeof(double)},
+    { 97, REB_DP7,          "ri_ias15.b",                   offsetof(struct reb_simulation, ri_ias15.b), offsetof(struct reb_simulation, ri_ias15.N_allocated), 7*sizeof(double)},
+    { 98, REB_DP7,          "ri_ias15.csb",                 offsetof(struct reb_simulation, ri_ias15.csb), offsetof(struct reb_simulation, ri_ias15.N_allocated), 7*sizeof(double)},
+    { 99, REB_DP7,          "ri_ias15.e",                   offsetof(struct reb_simulation, ri_ias15.e), offsetof(struct reb_simulation, ri_ias15.N_allocated), 7*sizeof(double)},
+    { 100, REB_DP7,         "ri_ias15.br",                  offsetof(struct reb_simulation, ri_ias15.br), offsetof(struct reb_simulation, ri_ias15.N_allocated), 7*sizeof(double)},
+    { 101, REB_DP7,         "ri_ias15.er",                  offsetof(struct reb_simulation, ri_ias15.er), offsetof(struct reb_simulation, ri_ias15.N_allocated), 7*sizeof(double)},
+    { 104, REB_POINTER,     "ri_whfast.p_jh",               offsetof(struct reb_simulation, ri_whfast.p_jh), offsetof(struct reb_simulation, ri_whfast.N_allocated), sizeof(struct reb_particle)},
+    //{ 107, REB_INT,         "visualization",                offsetof(struct reb_simulation, visualization), 0, 0},
+    { 112, REB_POINTER,     "ri_janus.p_int",               offsetof(struct reb_simulation, ri_janus.p_int), offsetof(struct reb_simulation, ri_janus.N_allocated), sizeof(struct reb_particle_int)},
+    { 113, REB_DOUBLE,      "ri_janus.scale_pos",           offsetof(struct reb_simulation, ri_janus.scale_pos), 0, 0},
+    { 114, REB_DOUBLE,      "ri_janus.scale_vel",           offsetof(struct reb_simulation, ri_janus.scale_vel), 0, 0},
+    { 115, REB_UINT,        "ri_janus.order",               offsetof(struct reb_simulation, ri_janus.order), 0, 0},
+    { 116, REB_UINT,        "ri_janus.recalculate_integer_coordinates_this_timestep", offsetof(struct reb_simulation, ri_janus.recalculate_integer_coordinates_this_timestep), 0, 0},
+    { 117, REB_INT,         "ri_whfast.coordinates",        offsetof(struct reb_simulation, ri_whfast.coordinates), 0, 0},
+    { 118, REB_DOUBLE,      "ri_mercurius.r_crit_hill",     offsetof(struct reb_simulation, ri_mercurius.r_crit_hill), 0, 0},
+    { 119, REB_UINT,        "ri_mercurius.safe_mode",       offsetof(struct reb_simulation, ri_mercurius.safe_mode), 0, 0},
+    { 120, REB_UINT,        "ri_mercurius.is_synchronized", offsetof(struct reb_simulation, ri_mercurius.is_synchronized), 0, 0},
+    { 122, REB_POINTER,     "ri_mercurius.dcrit",           offsetof(struct reb_simulation, ri_mercurius.dcrit), offsetof(struct reb_simulation, ri_mercurius.N_allocated_dcrit), sizeof(double)},
+    { 123, REB_UINT,        "ri_mercurius.recalculate_coordinates_this_timestep", offsetof(struct reb_simulation, ri_mercurius.recalculate_coordinates_this_timestep), 0, 0},
+    { 125, REB_INT,         "simulationarchive_version",    offsetof(struct reb_simulation, simulationarchive_version), 0, 0},
+    { 126, REB_DOUBLE,      "walltime",                     offsetof(struct reb_simulation, walltime), 0, 0},
+    { 127, REB_DOUBLE,      "walltime_last_steps",          offsetof(struct reb_simulation, walltime_last_steps), 0, 0},
+    { 130, REB_UINT32,      "python_unit_l",                offsetof(struct reb_simulation, python_unit_l), 0, 0},
+    { 131, REB_UINT32,      "python_unit_m",                offsetof(struct reb_simulation, python_unit_m), 0, 0},
+    { 132, REB_UINT32,      "python_unit_t",                offsetof(struct reb_simulation, python_unit_t), 0, 0},
+    { 133, REB_VEC3D,       "ri_mercurius.com_pos",         offsetof(struct reb_simulation, ri_mercurius.com_pos), 0, 0},
+    { 134, REB_VEC3D,       "ri_mercurius.com_vel",         offsetof(struct reb_simulation, ri_mercurius.com_vel), 0, 0},
+    { 135, REB_UINT64,      "simulationarchive_auto_step",  offsetof(struct reb_simulation, simulationarchive_auto_step), 0, 0},
+    { 136, REB_UINT64,      "simulationarchive_next_step",  offsetof(struct reb_simulation, simulationarchive_next_step), 0, 0},
+    { 137, REB_UINT64,      "steps_done",                   offsetof(struct reb_simulation, steps_done), 0, 0},
+    { 140, REB_UINT,        "ri_saba.safe_mode",            offsetof(struct reb_simulation, ri_saba.safe_mode), 0, 0},
+    { 141, REB_UINT,        "ri_saba.is_synchronized",      offsetof(struct reb_simulation, ri_saba.is_synchronized), 0, 0},
+    { 143, REB_UINT,        "ri_whfast.corrector2",         offsetof(struct reb_simulation, ri_whfast.corrector2), 0, 0},
+    { 144, REB_INT,         "ri_whfast.kernel",             offsetof(struct reb_simulation, ri_whfast.kernel), 0, 0},
+    { 145, REB_DOUBLE,      "dt_last_done",                 offsetof(struct reb_simulation, dt_last_done), 0, 0},
+    { 146, REB_INT,         "ri_saba.type",                 offsetof(struct reb_simulation, ri_saba.type), 0, 0},
+    { 147, REB_UINT,        "ri_saba.keep_unsynchronized",  offsetof(struct reb_simulation, ri_saba.keep_unsynchronized), 0, 0},
+    { 148, REB_INT,         "ri_eos.phi0",                  offsetof(struct reb_simulation, ri_eos.phi0), 0, 0},
+    { 149, REB_INT,         "ri_eos.phi1",                  offsetof(struct reb_simulation, ri_eos.phi1), 0, 0},
+    { 150, REB_UINT,        "ri_eos.n",                     offsetof(struct reb_simulation, ri_eos.n), 0, 0},
+    { 151, REB_UINT,        "ri_eos.safe_mode",             offsetof(struct reb_simulation, ri_eos.safe_mode), 0, 0},
+    { 152, REB_UINT,        "ri_eos.is_synchronized",       offsetof(struct reb_simulation, ri_eos.is_synchronized), 0, 0},
+    { 154, REB_UINT,        "rand_seed",                    offsetof(struct reb_simulation, rand_seed), 0, 0},
+    { 155, REB_INT,         "testparticle_hidewarnings",    offsetof(struct reb_simulation, testparticle_hidewarnings), 0, 0},
+    { 156, REB_DOUBLE,      "ri_bs.eps_abs",                offsetof(struct reb_simulation, ri_bs.eps_abs), 0, 0},
+    { 157, REB_DOUBLE,      "ri_bs.eps_rel",                offsetof(struct reb_simulation, ri_bs.eps_rel), 0, 0},
+    { 158, REB_DOUBLE,      "ri_bs.min_dt",                 offsetof(struct reb_simulation, ri_bs.min_dt), 0, 0},
+    { 159, REB_DOUBLE,      "ri_bs.max_dt",                 offsetof(struct reb_simulation, ri_bs.max_dt), 0, 0},
+    { 160, REB_INT,         "ri_bs.first_or_last_step",     offsetof(struct reb_simulation, ri_bs.first_or_last_step), 0, 0},
+    { 161, REB_INT,         "ri_bs.previous_rejected",      offsetof(struct reb_simulation, ri_bs.previous_rejected), 0, 0},
+    { 162, REB_INT,         "ri_bs.target_iter",            offsetof(struct reb_simulation, ri_bs.target_iter), 0, 0},
+    { 164, REB_POINTER_FIXED_SIZE, "display_settings",      offsetof(struct reb_simulation, display_settings), 0, sizeof(struct reb_display_settings)},
+    { 165, REB_DOUBLE,      "ri_trace.r_crit_hill",         offsetof(struct reb_simulation, ri_trace.r_crit_hill), 0, 0},
+    // TRACE Pericenter conditions used to have ids 166 - 168. Do not reuse.
+    { 169, REB_DOUBLE,      "ri_trace.peri_crit_eta",       offsetof(struct reb_simulation, ri_trace.peri_crit_eta), 0, 0},
+    { 170, REB_INT, "ri_trace.peri_mode", offsetof(struct reb_simulation, ri_trace.peri_mode), 0, 0},
+    //    { 163, REB_INT,         "var_rescale_warning", offsetof(struct reb_simulation, var_rescale_warning), 0, 0},
+    // TES Variables used to have ids 300 - 388. Do not reuse. 
+    { 390, REB_UINT,        "ri_whfast512.keep_unsynchronized", offsetof(struct reb_simulation, ri_whfast512.keep_unsynchronized), 0, 0},
+    { 391, REB_UINT,        "ri_whfast512.is_synchronized", offsetof(struct reb_simulation, ri_whfast512.is_synchronized), 0, 0},
+    { 392, REB_UINT,        "ri_whfast512.gr_potential",    offsetof(struct reb_simulation, ri_whfast512.gr_potential), 0, 0},
+    { 394, REB_POINTER_ALIGNED, "ri_whfast512.pjh",         offsetof(struct reb_simulation, ri_whfast512.p_jh), offsetof(struct reb_simulation, ri_whfast512.N_allocated), sizeof(struct reb_particle_avx512)},
+    // 396, 397 used to be max_radius0 and max_radius1
+    { 398, REB_UINT,        "ri_whfast512.N_systems",       offsetof(struct reb_simulation, ri_whfast512.N_systems), 0, 0},
+    { 399, REB_PARTICLE4,   "ri_whfast512.pjh0",            offsetof(struct reb_simulation, ri_whfast512.p_jh0), 0, 0},
+    { 400, REB_UINT,        "ri_leapfrog.order",            offsetof(struct reb_simulation, ri_leapfrog.order), 0, 0},
+    { 401, REB_POINTER,     "ri_custom.data",               offsetof(struct reb_simulation, ri_custom.data), offsetof(struct reb_simulation, ri_custom.data_size), 1},
+    { 1329743186, REB_OTHER,"header", 0, 0, 0},
+    { 9998, REB_OTHER,      "sablob", 0, 0, 0},
+    { 9999, REB_FIELD_END,  "end", 0, 0, 0}
+};
+
+// required for python pickling
+void reb_simulation_output_free_stream(char* buf){
+    free(buf);
+}
 
 /** 
  * @brief Replacement for open_memstream
@@ -49,7 +206,7 @@ void reb_output_stream_write(char** bufp, size_t* allocatedsize, size_t* sizep, 
     int increased = 0;
     while (*allocatedsize==0 || (*sizep)+size>(*allocatedsize)){
         increased = 1;
-	    *allocatedsize = (*allocatedsize) ? (*allocatedsize) * 2 : 32;
+        *allocatedsize = (*allocatedsize) ? (*allocatedsize) * 2 : 32;
     }
     if (increased){
         *bufp = realloc(*bufp,*allocatedsize);
@@ -60,9 +217,9 @@ void reb_output_stream_write(char** bufp, size_t* allocatedsize, size_t* sizep, 
 }
 
 /**
- * @brief Same as reb_output_check but with a phase argument
+ * @brief Same as reb_simulation_output_check but with a phase argument
  */
-int reb_output_check_phase(struct reb_simulation* r, double interval,double phase){
+int reb_simulation_output_check_phase(struct reb_simulation* r, double interval,double phase){
     double shift = r->t+interval*phase;
     if (floor(shift/interval)!=floor((shift-r->dt)/interval)){
         return 1;
@@ -74,8 +231,8 @@ int reb_output_check_phase(struct reb_simulation* r, double interval,double phas
     return 0;
 }
 
-int reb_output_check(struct reb_simulation* r, double interval){
-    return reb_output_check_phase(r, interval,0);
+int reb_simulation_output_check(struct reb_simulation* r, double interval){
+    return reb_simulation_output_check_phase(r, interval,0);
 }
 
 
@@ -86,19 +243,97 @@ double profiling_time_initial   = 0;
 double profiling_timing_initial = 0;
 double profiling_time_final     = 0;
 void profiling_start(void){
-    struct timeval tim;
+    struct reb_timeval tim;
     gettimeofday(&tim, NULL);
     profiling_time_initial = tim.tv_sec+(tim.tv_usec/1000000.0);
 }
 void profiling_stop(int cat){
-    struct timeval tim;
+    struct reb_timeval tim;
     gettimeofday(&tim, NULL);
     profiling_time_final = tim.tv_sec+(tim.tv_usec/1000000.0);
     profiling_time_sum[cat] += profiling_time_final - profiling_time_initial;
 }
 #endif // PROFILING
 
-void reb_output_timing(struct reb_simulation* r, const double tmax){
+#ifdef __EMSCRIPTEN__
+// fflush does not work in emscripten. Workaround.
+EM_JS(void, reb_remove_last_line, (), {
+        var output = document.getElementById("output");
+        if (output){
+        const lastIndex1 = output.value.lastIndexOf("\n");
+        const lastIndex2 = output.value.lastIndexOf("\n",lastIndex1-1);
+        const lastIndexNtot = output.value.lastIndexOf("N_tot=");
+        if(lastIndex1>0 && lastIndex2<lastIndexNtot){
+        output.value = output.value.substring(0, lastIndex2+1);
+        }
+        }
+        });
+#endif
+
+int reb_simulation_output_screenshot(struct reb_simulation* r, const char* filename){
+#ifdef SERVER
+    if (!r->server_data){
+        reb_simulation_error(r, "To take a screenshot, call reb_simulation_start_server() and connect a web browser.");
+        return 0;
+    }
+
+    r->server_data->status_before_screenshot = r->status;
+    // Tell client to take screenshot
+    r->status = REB_STATUS_SCREENSHOT;
+
+    // Release mutex so client can pull simulation
+    if (r->server_data->mutex_locked_by_integrate){
+#ifdef _WIN32
+        ReleaseMutex(r->server_data->mutex);
+#else // _WIN32
+        pthread_mutex_unlock(&(r->server_data->mutex));
+#endif // _WIN32
+    }
+
+    // Wait until screenshot arrives
+    while (!r->server_data->screenshot && r->status <0){
+        usleep(100);
+        if (reb_sigint > 1){
+            r->status = REB_STATUS_SIGINT;
+        }
+    }
+
+    // Lock mutex again before continuing
+    if (r->server_data->mutex_locked_by_integrate){
+#ifdef _WIN32
+        WaitForSingleObject(r->server_data->mutex, INFINITE);
+#else // _WIN32
+        pthread_mutex_lock(&(r->server_data->mutex)); 
+#endif // _WIN32
+    }
+
+    r->status = r->server_data->status_before_screenshot;
+
+    if (r->server_data->screenshot){
+        FILE* f = fopen(filename,"wb");
+        if (!f){
+            reb_simulation_error(r, "Error opening output file for screenshot.");
+            free(r->server_data->screenshot);
+            r->server_data->screenshot = 0;
+            r->server_data->N_screenshot = 0;
+            return 0;
+        }else{
+            fwrite(r->server_data->screenshot, r->server_data->N_screenshot, 1, f);
+            fclose(f);
+            free(r->server_data->screenshot);
+            r->server_data->screenshot = 0;
+            r->server_data->N_screenshot = 0;
+            return 1;
+        }
+    }
+#else //SERVER
+    reb_simulation_error(r, "To take a screenshot compile with SERVER=1, call reb_simulation_start_server(), and connect with a web browser.");
+#endif //SERVER
+    return 0;
+}
+
+
+void reb_simulation_output_timing(struct reb_simulation* r, const double tmax){
     const int N = r->N;
 #ifdef MPI
     int N_tot = 0;
@@ -107,13 +342,17 @@ void reb_output_timing(struct reb_simulation* r, const double tmax){
 #else
     int N_tot = N;
 #endif
-    struct timeval tim;
+    struct reb_timeval tim;
     gettimeofday(&tim, NULL);
     double temp = tim.tv_sec+(tim.tv_usec/1000000.0);
     if (r->output_timing_last==-1){
         r->output_timing_last = temp;
     }else{
+#ifdef __EMSCRIPTEN__
+        reb_remove_last_line();
+#else
         printf("\r");
+#endif
 #ifdef PROFILING
         fputs("\033[A\033[2K",stdout);
         for (int i=0;i<=PROFILING_CAT_NUM;i++){
@@ -134,7 +373,7 @@ void reb_output_timing(struct reb_simulation* r, const double tmax){
     }
 #ifdef PROFILING
     if (profiling_timing_initial==0){
-        struct timeval tim;
+        struct reb_timeval tim;
         gettimeofday(&tim, NULL);
         profiling_timing_initial = tim.tv_sec+(tim.tv_usec/1000000.0);
     }
@@ -165,28 +404,36 @@ void reb_output_timing(struct reb_simulation* r, const double tmax){
         }
         if (i==PROFILING_CAT_NUM){
             printf("%5.2f%%",(1.-_sum/(profiling_time_final - profiling_timing_initial))*100.);
+        }else if (i==PROFILING_CAT_INTEGRATOR){
+            printf("%5.2f%%\n",(profiling_time_sum[PROFILING_CAT_INTEGRATOR]-profiling_time_sum[PROFILING_CAT_GRAVITY])/(profiling_time_final - profiling_timing_initial)*100.);
         }else{
             printf("%5.2f%%\n",profiling_time_sum[i]/(profiling_time_final - profiling_timing_initial)*100.);
+        }
+        if (i!=PROFILING_CAT_NUM && i!=PROFILING_CAT_GRAVITY){ // already in INTEGRATOR
             _sum += profiling_time_sum[i];
         }
     }
 #endif // PROFILING
+#ifdef __EMSCRIPTEN__
+    printf("\n");
+#else
     fflush(stdout);
+#endif
     r->output_timing_last = temp;
 }
 
 
-void reb_output_ascii(struct reb_simulation* r, char* filename){
+void reb_simulation_output_ascii(struct reb_simulation* r, char* filename){
     const int N = r->N;
 #ifdef MPI
     char filename_mpi[1024];
     sprintf(filename_mpi,"%s_%d",filename,r->mpi_id);
-    FILE* of = fopen(filename_mpi,"a"); 
+    FILE* of = fopen(filename_mpi,"ab"); 
 #else // MPI
-    FILE* of = fopen(filename,"a"); 
+    FILE* of = fopen(filename,"ab"); 
 #endif // MPI
     if (of==NULL){
-        reb_error(r, "Can not open file.");
+        reb_simulation_error(r, "Can not open file.");
         return;
     }
     for (int i=0;i<N;i++){
@@ -196,302 +443,186 @@ void reb_output_ascii(struct reb_simulation* r, char* filename){
     fclose(of);
 }
 
-void reb_output_orbits(struct reb_simulation* r, char* filename){
+void reb_simulation_output_orbits(struct reb_simulation* r, char* filename){
     const int N = r->N;
 #ifdef MPI
     char filename_mpi[1024];
     sprintf(filename_mpi,"%s_%d",filename,r->mpi_id);
-    FILE* of = fopen(filename_mpi,"a"); 
+    FILE* of = fopen(filename_mpi,"ab"); 
 #else // MPI
-    FILE* of = fopen(filename,"a"); 
+    FILE* of = fopen(filename,"ab"); 
 #endif // MPI
     if (of==NULL){
-        reb_error(r, "Can not open file.");
+        reb_simulation_error(r, "Can not open file.");
         return;
     }
     struct reb_particle com = r->particles[0];
     for (int i=1;i<N;i++){
-        struct reb_orbit o = reb_tools_particle_to_orbit(r->G, r->particles[i],com);
+        struct reb_orbit o = reb_orbit_from_particle(r->G, r->particles[i],com);
         fprintf(of,"%e\t%e\t%e\t%e\t%e\t%e\t%e\t%e\t%e\n",r->t,o.a,o.e,o.inc,o.Omega,o.omega,o.l,o.P,o.f);
-        com = reb_get_com_of_pair(com,r->particles[i]);
+        com = reb_particle_com_of_pair(com,r->particles[i]);
     }
     fclose(of);
-}
-
-void static inline reb_save_dp7(struct reb_dp7* dp7, const int N3, char** bufp, size_t* sizep, size_t* allocatedsize){
-    reb_output_stream_write(bufp, allocatedsize, sizep, dp7->p0,sizeof(double)*N3);
-    reb_output_stream_write(bufp, allocatedsize, sizep, dp7->p1,sizeof(double)*N3);
-    reb_output_stream_write(bufp, allocatedsize, sizep, dp7->p2,sizeof(double)*N3);
-    reb_output_stream_write(bufp, allocatedsize, sizep, dp7->p3,sizeof(double)*N3);
-    reb_output_stream_write(bufp, allocatedsize, sizep, dp7->p4,sizeof(double)*N3);
-    reb_output_stream_write(bufp, allocatedsize, sizep, dp7->p5,sizeof(double)*N3);
-    reb_output_stream_write(bufp, allocatedsize, sizep, dp7->p6,sizeof(double)*N3);
 }
 
 // Macro to write a single field to a binary file.
 // Memset forces padding to be set to 0 (not necessary but
 // helps when comparing binary files)
-#define WRITE_FIELD(typename, value, length) {\
-        struct reb_binary_field field;\
-        memset(&field,0,sizeof(struct reb_binary_field));\
-        field.type = REB_BINARY_FIELD_TYPE_##typename;\
-        field.size = (length);\
-        reb_output_stream_write(bufp, &allocatedsize, sizep, &field,sizeof(struct reb_binary_field));\
-        reb_output_stream_write(bufp, &allocatedsize, sizep, value,field.size);\
+#define WRITE_FIELD_TYPE(typen, value, length) {\
+    struct reb_binary_field field;\
+    memset(&field,0,sizeof(struct reb_binary_field));\
+    field.type = typen;\
+    field.size = (length);\
+    reb_output_stream_write(bufp, &allocatedsize, sizep, &field,sizeof(struct reb_binary_field));\
+    reb_output_stream_write(bufp, &allocatedsize, sizep, value,field.size);\
+}
+
+
+void reb_simulation_save_to_stream(struct reb_simulation* r, char** bufp, size_t* sizep){
+    if (r->simulationarchive_version<3){
+        reb_simulation_error(r, "Simulationarchives with version < 3 are no longer supported.\n");
     }
-
-
-void reb_output_binary_to_stream(struct reb_simulation* r, char** bufp, size_t* sizep){
     size_t allocatedsize = 0;
     *bufp = NULL;
     *sizep = 0;
-    // Init integrators. This helps with bit-by-bit reproducibility.
-    reb_integrator_init(r);
 
     // Output header.
     char header[64] = "\0";
     int cwritten = sprintf(header,"REBOUND Binary File. Version: %s",reb_version_str);
     snprintf(header+cwritten+1,64-cwritten-1,"%s",reb_githash_str);
     reb_output_stream_write(bufp, &allocatedsize, sizep, header,sizeof(char)*64);
-   
-    WRITE_FIELD(T,                  &r->t,                              sizeof(double));
-    WRITE_FIELD(G,                  &r->G,                              sizeof(double));
-    WRITE_FIELD(SOFTENING,          &r->softening,                      sizeof(double));
-    WRITE_FIELD(DT,                 &r->dt,                             sizeof(double));
-    WRITE_FIELD(DTLASTDONE,         &r->dt_last_done,                   sizeof(double));
-    WRITE_FIELD(N,                  &r->N,                              sizeof(int));
-    WRITE_FIELD(NVAR,               &r->N_var,                          sizeof(int));
-    WRITE_FIELD(VARCONFIGN,         &r->var_config_N,                   sizeof(int));
-    WRITE_FIELD(NACTIVE,            &r->N_active,                       sizeof(int));
-    WRITE_FIELD(TESTPARTICLETYPE,   &r->testparticle_type,              sizeof(int));
-    WRITE_FIELD(TESTPARTICLEHIDEWARNINGS, &r->testparticle_hidewarnings,sizeof(int));
-    WRITE_FIELD(HASHCTR,            &r->hash_ctr,                       sizeof(int));
-    WRITE_FIELD(OPENINGANGLE2,      &r->opening_angle2,                 sizeof(double));
-    WRITE_FIELD(STATUS,             &r->status,                         sizeof(int));
-    WRITE_FIELD(EXACTFINISHTIME,    &r->exact_finish_time,              sizeof(int));
-    WRITE_FIELD(FORCEISVELOCITYDEP, &r->force_is_velocity_dependent,    sizeof(unsigned int));
-    WRITE_FIELD(GRAVITYIGNORETERMS, &r->gravity_ignore_terms,           sizeof(unsigned int));
-    WRITE_FIELD(OUTPUTTIMINGLAST,   &r->output_timing_last,             sizeof(double));
-    WRITE_FIELD(SAVEMESSAGES,       &r->save_messages,                  sizeof(int));
-    WRITE_FIELD(EXITMAXDISTANCE,    &r->exit_max_distance,              sizeof(double));
-    WRITE_FIELD(EXITMINDISTANCE,    &r->exit_min_distance,              sizeof(double));
-    WRITE_FIELD(USLEEP,             &r->usleep,                         sizeof(double));
-    WRITE_FIELD(TRACKENERGYOFFSET,  &r->track_energy_offset,            sizeof(int));
-    WRITE_FIELD(ENERGYOFFSET,       &r->energy_offset,                  sizeof(double));
-    WRITE_FIELD(BOXSIZE,            &r->boxsize,                        sizeof(struct reb_vec3d));
-    WRITE_FIELD(BOXSIZEMAX,         &r->boxsize_max,                    sizeof(double));
-    WRITE_FIELD(ROOTSIZE,           &r->root_size,                      sizeof(double));
-    WRITE_FIELD(ROOTN,              &r->root_n,                         sizeof(int));
-    WRITE_FIELD(ROOTNX,             &r->root_nx,                        sizeof(int));
-    WRITE_FIELD(ROOTNY,             &r->root_ny,                        sizeof(int));
-    WRITE_FIELD(ROOTNZ,             &r->root_nz,                        sizeof(int));
-    WRITE_FIELD(NGHOSTX,            &r->nghostx,                        sizeof(int));
-    WRITE_FIELD(NGHOSTY,            &r->nghosty,                        sizeof(int));
-    WRITE_FIELD(NGHOSTZ,            &r->nghostz,                        sizeof(int));
-    WRITE_FIELD(COLLISIONRESOLVEKEEPSORTED, &r->collision_resolve_keep_sorted, sizeof(int));
-    WRITE_FIELD(MINIMUMCOLLISIONVELOCITY, &r->minimum_collision_velocity, sizeof(double));
-    WRITE_FIELD(COLLISIONSPLOG,     &r->collisions_plog,                sizeof(double));
-    WRITE_FIELD(MAXRADIUS,          &r->max_radius,                     2*sizeof(double));
-    WRITE_FIELD(COLLISIONSNLOG,     &r->collisions_Nlog,                sizeof(long));
-    WRITE_FIELD(CALCULATEMEGNO,     &r->calculate_megno,                sizeof(int));
-    WRITE_FIELD(MEGNOYS,            &r->megno_Ys,                       sizeof(double));
-    WRITE_FIELD(MEGNOYSS,           &r->megno_Yss,                      sizeof(double));
-    WRITE_FIELD(MEGNOCOVYT,         &r->megno_cov_Yt,                   sizeof(double));
-    WRITE_FIELD(MEGNOVART,          &r->megno_var_t,                    sizeof(double));
-    WRITE_FIELD(MEGNOMEANT,         &r->megno_mean_t,                   sizeof(double));
-    WRITE_FIELD(MEGNOMEANY,         &r->megno_mean_Y,                   sizeof(double));
-    WRITE_FIELD(MEGNON,             &r->megno_n,                        sizeof(long));
-    WRITE_FIELD(SAVERSION,          &r->simulationarchive_version,      sizeof(int));
-    WRITE_FIELD(SASIZESNAPSHOT,     &r->simulationarchive_size_snapshot,sizeof(long));
-    WRITE_FIELD(SAAUTOINTERVAL,     &r->simulationarchive_auto_interval, sizeof(double));
-    WRITE_FIELD(SAAUTOWALLTIME,     &r->simulationarchive_auto_walltime, sizeof(double));
-    WRITE_FIELD(SANEXT,             &r->simulationarchive_next,         sizeof(double));
-    WRITE_FIELD(WALLTIME,           &r->walltime,                       sizeof(double));
-    WRITE_FIELD(COLLISION,          &r->collision,                      sizeof(int));
-    WRITE_FIELD(VISUALIZATION,      &r->visualization,                  sizeof(int));
-    WRITE_FIELD(INTEGRATOR,         &r->integrator,                     sizeof(int));
-    WRITE_FIELD(BOUNDARY,           &r->boundary,                       sizeof(int));
-    WRITE_FIELD(GRAVITY,            &r->gravity,                        sizeof(int));
-    WRITE_FIELD(SEI_OMEGA,          &r->ri_sei.OMEGA,                   sizeof(double));
-    WRITE_FIELD(SEI_OMEGAZ,         &r->ri_sei.OMEGAZ,                  sizeof(double));
-    WRITE_FIELD(SEI_LASTDT,         &r->ri_sei.lastdt,                  sizeof(double));
-    WRITE_FIELD(SEI_SINDT,          &r->ri_sei.sindt,                   sizeof(double));
-    WRITE_FIELD(SEI_TANDT,          &r->ri_sei.tandt,                   sizeof(double));
-    WRITE_FIELD(SEI_SINDTZ,         &r->ri_sei.sindtz,                  sizeof(double));
-    WRITE_FIELD(SEI_TANDTZ,         &r->ri_sei.tandtz,                  sizeof(double));
-    WRITE_FIELD(WHFAST_CORRECTOR,   &r->ri_whfast.corrector,            sizeof(unsigned int));
-    WRITE_FIELD(WHFAST_RECALCJAC,   &r->ri_whfast.recalculate_coordinates_this_timestep, sizeof(unsigned int));
-    WRITE_FIELD(WHFAST_SAFEMODE,    &r->ri_whfast.safe_mode,            sizeof(unsigned int));
-    WRITE_FIELD(WHFAST_KEEPUNSYNC,  &r->ri_whfast.keep_unsynchronized,  sizeof(unsigned int));
-    WRITE_FIELD(WHFAST_ISSYNCHRON,  &r->ri_whfast.is_synchronized,      sizeof(unsigned int));
-    WRITE_FIELD(WHFAST_TIMESTEPWARN,&r->ri_whfast.timestep_warning,     sizeof(unsigned int));
-    WRITE_FIELD(WHFAST_PJ,          r->ri_whfast.p_jh,                  sizeof(struct reb_particle)*r->ri_whfast.allocated_N);
-    WRITE_FIELD(WHFAST_COORDINATES, &r->ri_whfast.coordinates,          sizeof(int));
-    WRITE_FIELD(IAS15_EPSILON,      &r->ri_ias15.epsilon,               sizeof(double));
-    WRITE_FIELD(IAS15_MINDT,        &r->ri_ias15.min_dt,                sizeof(double));
-    WRITE_FIELD(IAS15_EPSILONGLOBAL,&r->ri_ias15.epsilon_global,        sizeof(unsigned int));
-    WRITE_FIELD(IAS15_ITERATIONSMAX,&r->ri_ias15.iterations_max_exceeded,sizeof(unsigned long));
-    WRITE_FIELD(IAS15_ALLOCATEDN,   &r->ri_ias15.allocatedN,            sizeof(int));
-    WRITE_FIELD(JANUS_SCALEPOS,     &r->ri_janus.scale_pos,             sizeof(double));
-    WRITE_FIELD(JANUS_SCALEVEL,     &r->ri_janus.scale_vel,             sizeof(double));
-    WRITE_FIELD(JANUS_ORDER,        &r->ri_janus.order,                 sizeof(unsigned int));
-    WRITE_FIELD(JANUS_ALLOCATEDN,   &r->ri_janus.allocated_N,           sizeof(unsigned int));
-    WRITE_FIELD(JANUS_RECALC,       &r->ri_janus.recalculate_integer_coordinates_this_timestep, sizeof(unsigned int));
-    WRITE_FIELD(JANUS_PINT,         r->ri_janus.p_int,                  sizeof(struct reb_particle_int)*r->ri_janus.allocated_N);
-    WRITE_FIELD(MERCURIUS_HILLFAC,  &r->ri_mercurius.hillfac,           sizeof(double));
-    WRITE_FIELD(MERCURIUS_SAFEMODE, &r->ri_mercurius.safe_mode,         sizeof(unsigned int));
-    WRITE_FIELD(MERCURIUS_ISSYNCHRON, &r->ri_mercurius.is_synchronized, sizeof(unsigned int));
-    WRITE_FIELD(MERCURIUS_DCRIT,    r->ri_mercurius.dcrit,              sizeof(double)*r->ri_mercurius.dcrit_allocatedN);
-    WRITE_FIELD(MERCURIUS_COMPOS,   &(r->ri_mercurius.com_pos),         sizeof(struct reb_vec3d));
-    WRITE_FIELD(MERCURIUS_COMVEL,   &(r->ri_mercurius.com_vel),         sizeof(struct reb_vec3d));
-    WRITE_FIELD(PYTHON_UNIT_L,      &r->python_unit_l,                  sizeof(uint32_t));
-    WRITE_FIELD(PYTHON_UNIT_M,      &r->python_unit_m,                  sizeof(uint32_t));
-    WRITE_FIELD(PYTHON_UNIT_T,      &r->python_unit_t,                  sizeof(uint32_t));
-    WRITE_FIELD(STEPSDONE,          &r->steps_done,                     sizeof(unsigned long long));
-    WRITE_FIELD(SAAUTOSTEP,         &r->simulationarchive_auto_step,    sizeof(unsigned long long));
-    WRITE_FIELD(SANEXTSTEP,         &r->simulationarchive_next_step,    sizeof(unsigned long long));
-    WRITE_FIELD(SABA_TYPE,          &r->ri_saba.type,                   sizeof(unsigned int));
-    WRITE_FIELD(SABA_SAFEMODE,      &r->ri_saba.safe_mode,              sizeof(unsigned int));
-    WRITE_FIELD(SABA_ISSYNCHRON,    &r->ri_saba.is_synchronized,        sizeof(unsigned int));
-    WRITE_FIELD(SABA_KEEPUNSYNC,    &r->ri_saba.keep_unsynchronized,    sizeof(unsigned int));
-    WRITE_FIELD(WHFAST_CORRECTOR2,  &r->ri_whfast.corrector2,           sizeof(unsigned int));
-    WRITE_FIELD(WHFAST_KERNEL,      &r->ri_whfast.kernel,               sizeof(unsigned int));
-    WRITE_FIELD(EOS_PHI0,           &r->ri_eos.phi0,                    sizeof(unsigned int));
-    WRITE_FIELD(EOS_PHI1,           &r->ri_eos.phi1,                    sizeof(unsigned int));
-    WRITE_FIELD(EOS_N,              &r->ri_eos.n,                       sizeof(unsigned int));
-    WRITE_FIELD(EOS_SAFEMODE,       &r->ri_eos.safe_mode,               sizeof(unsigned int));
-    WRITE_FIELD(EOS_ISSYNCHRON,     &r->ri_eos.is_synchronized,         sizeof(unsigned int));
-    WRITE_FIELD(RAND_SEED,          &r->rand_seed,                      sizeof(unsigned int));
+
+    // Compress data if possible
+    // This does not affect future calculation, but might trigger a realloc.
+    if (r->ri_ias15.N_allocated > 3*r->N){
+        r->ri_ias15.N_allocated = 3*r->N;
+    }
+    /// Output all fields
+    int i=0;
+    while (reb_binary_field_descriptor_list[i].dtype!=REB_FIELD_END){
+        int dtype = reb_binary_field_descriptor_list[i].dtype;
+        // Simple data types:
+        if (dtype == REB_DOUBLE || dtype == REB_INT || dtype == REB_UINT || dtype == REB_UINT32
+                || dtype == REB_INT64 || dtype == REB_UINT64 || dtype == REB_PARTICLE 
+                || dtype == REB_PARTICLE4 || dtype == REB_VEC3D ){
+            struct reb_binary_field field;
+            memset(&field,0,sizeof(struct reb_binary_field));
+            field.type = reb_binary_field_descriptor_list[i].type;
+            switch (dtype){
+                case REB_DOUBLE: 
+                    field.size = sizeof(double);
+                    break;
+                case REB_INT: 
+                    field.size = sizeof(int);
+                    break;
+                case REB_UINT: 
+                    field.size = sizeof(unsigned int);
+                    break;
+                case REB_UINT32: 
+                    field.size = sizeof(uint32_t);
+                    break;
+                case REB_INT64:
+                    field.size = sizeof(int64_t);
+                    break;
+                case REB_UINT64:
+                    field.size = sizeof(uint64_t);
+                    break;
+                case REB_VEC3D:
+                    field.size = sizeof(struct reb_vec3d);
+                    break;
+                case REB_PARTICLE:
+                    field.size = sizeof(struct reb_particle);
+                    break;
+                case REB_PARTICLE4:
+                    field.size = 4*sizeof(struct reb_particle);
+                    break;
+            }
+            reb_output_stream_write(bufp, &allocatedsize, sizep, &field, sizeof(struct reb_binary_field));
+            char* pointer = (char*)r + reb_binary_field_descriptor_list[i].offset;
+            reb_output_stream_write(bufp, &allocatedsize, sizep, pointer, field.size);
+        }
+        // Pointer data types
+        if (dtype == REB_POINTER || dtype == REB_POINTER_ALIGNED ){
+            struct reb_binary_field field;
+            memset(&field,0,sizeof(struct reb_binary_field));
+            field.type = reb_binary_field_descriptor_list[i].type;
+            unsigned int* pointer_N = (unsigned int*)((char*)r + reb_binary_field_descriptor_list[i].offset_N);
+            field.size = (*pointer_N) * reb_binary_field_descriptor_list[i].element_size;
+
+            if (field.size){
+                reb_output_stream_write(bufp, &allocatedsize, sizep, &field, sizeof(struct reb_binary_field));
+                char* pointer = (char*)r + reb_binary_field_descriptor_list[i].offset;
+                pointer = *(char**)pointer;
+                reb_output_stream_write(bufp, &allocatedsize, sizep, pointer, field.size);
+            }
+        }
+        // Pointer with a fixed size
+        if (dtype == REB_POINTER_FIXED_SIZE ){
+            struct reb_binary_field field;
+            memset(&field,0,sizeof(struct reb_binary_field));
+            field.type = reb_binary_field_descriptor_list[i].type;
+            field.size = reb_binary_field_descriptor_list[i].element_size;
+
+            char* pointer = (char*)r + reb_binary_field_descriptor_list[i].offset;
+            pointer = *(char**)pointer;
+            if (pointer){
+                reb_output_stream_write(bufp, &allocatedsize, sizep, &field, sizeof(struct reb_binary_field));
+                reb_output_stream_write(bufp, &allocatedsize, sizep, pointer, field.size);
+            }
+        }
+        // Special datatype for IAS15. Similar to POINTER
+        if (dtype == REB_DP7 ){
+            struct reb_binary_field field;
+            memset(&field,0,sizeof(struct reb_binary_field));
+            field.type = reb_binary_field_descriptor_list[i].type;
+            unsigned int* pointer_N = (unsigned int*)((char*)r + reb_binary_field_descriptor_list[i].offset_N);
+            field.size = (*pointer_N) * reb_binary_field_descriptor_list[i].element_size;
+
+            if (field.size){
+                reb_output_stream_write(bufp, &allocatedsize, sizep, &field, sizeof(struct reb_binary_field));
+                char* pointer = (char*)r + reb_binary_field_descriptor_list[i].offset;
+                struct reb_dp7* dp7 = (struct reb_dp7*)pointer;
+                reb_output_stream_write(bufp, &allocatedsize, sizep, dp7->p0,field.size/7);
+                reb_output_stream_write(bufp, &allocatedsize, sizep, dp7->p1,field.size/7);
+                reb_output_stream_write(bufp, &allocatedsize, sizep, dp7->p2,field.size/7);
+                reb_output_stream_write(bufp, &allocatedsize, sizep, dp7->p3,field.size/7);
+                reb_output_stream_write(bufp, &allocatedsize, sizep, dp7->p4,field.size/7);
+                reb_output_stream_write(bufp, &allocatedsize, sizep, dp7->p5,field.size/7);
+                reb_output_stream_write(bufp, &allocatedsize, sizep, dp7->p6,field.size/7);
+            }
+        }
+        i++;
+    }
+
+    // Write function pointer warning flag
     int functionpointersused = 0;
     if (r->coefficient_of_restitution ||
-        r->collision_resolve ||
-        r->additional_forces ||
-        r->heartbeat ||
-        r->post_timestep_modifications ||
-        r->free_particle_ap){
+            r->collision_resolve ||
+            r->additional_forces ||
+            r->heartbeat ||
+            r->ri_trace.S ||
+            r->ri_trace.S_peri ||
+            r->post_timestep_modifications ||
+            r->free_particle_ap){
         functionpointersused = 1;
     }
-    WRITE_FIELD(FUNCTIONPOINTERS,   &functionpointersused,              sizeof(int));
-    {
-        struct reb_binary_field field;
-        memset(&field,0,sizeof(struct reb_binary_field));
-        field.type = REB_BINARY_FIELD_TYPE_PARTICLES;
-        field.size = sizeof(struct reb_particle)*r->N;
-        reb_output_stream_write(bufp, &allocatedsize, sizep, &field,sizeof(struct reb_binary_field));
-        // output one particle at a time to sanitize pointers.
-        for (int l=0;l<r->N;l++){
-            struct reb_particle op = r->particles[l];
-            op.c = NULL;
-            op.ap = NULL;
-            op.sim = NULL;
-            reb_output_stream_write(bufp, &allocatedsize, sizep, &op,sizeof(struct reb_particle));
-        }
-    } 
-    if (r->var_config){
-        WRITE_FIELD(VARCONFIG,      r->var_config,                      sizeof(struct reb_variational_configuration)*r->var_config_N);
-    }
-    if (r->ri_ias15.allocatedN){
-        int N3 = r->ri_ias15.allocatedN;
-        WRITE_FIELD(IAS15_AT,   r->ri_ias15.at,     sizeof(double)*N3);
-        WRITE_FIELD(IAS15_X0,   r->ri_ias15.x0,     sizeof(double)*N3);
-        WRITE_FIELD(IAS15_V0,   r->ri_ias15.v0,     sizeof(double)*N3);
-        WRITE_FIELD(IAS15_A0,   r->ri_ias15.a0,     sizeof(double)*N3);
-        WRITE_FIELD(IAS15_CSX,  r->ri_ias15.csx,    sizeof(double)*N3);
-        WRITE_FIELD(IAS15_CSV,  r->ri_ias15.csv,    sizeof(double)*N3);
-        WRITE_FIELD(IAS15_CSA0, r->ri_ias15.csa0,   sizeof(double)*N3);
-        {
-            struct reb_binary_field field = {.type = REB_BINARY_FIELD_TYPE_IAS15_G, .size = sizeof(double)*N3*7};
-            reb_output_stream_write(bufp, &allocatedsize, sizep, &field,sizeof(struct reb_binary_field));
-            reb_save_dp7(&(r->ri_ias15.g),N3,bufp,sizep,&allocatedsize);
-        }
-        {
-            struct reb_binary_field field = {.type = REB_BINARY_FIELD_TYPE_IAS15_B, .size = sizeof(double)*N3*7};
-            reb_output_stream_write(bufp, &allocatedsize, sizep, &field,sizeof(struct reb_binary_field));
-            reb_save_dp7(&(r->ri_ias15.b),N3,bufp,sizep,&allocatedsize);
-        }
-        {
-            struct reb_binary_field field = {.type = REB_BINARY_FIELD_TYPE_IAS15_CSB, .size = sizeof(double)*N3*7};
-            reb_output_stream_write(bufp, &allocatedsize, sizep, &field,sizeof(struct reb_binary_field));
-            reb_save_dp7(&(r->ri_ias15.csb),N3,bufp,sizep,&allocatedsize);
-        }
-        {
-            struct reb_binary_field field = {.type = REB_BINARY_FIELD_TYPE_IAS15_E, .size = sizeof(double)*N3*7};
-            reb_output_stream_write(bufp, &allocatedsize, sizep, &field,sizeof(struct reb_binary_field));
-            reb_save_dp7(&(r->ri_ias15.e),N3,bufp,sizep,&allocatedsize);
-        }
-        {
-            struct reb_binary_field field = {.type = REB_BINARY_FIELD_TYPE_IAS15_BR, .size = sizeof(double)*N3*7};
-            reb_output_stream_write(bufp, &allocatedsize, sizep, &field,sizeof(struct reb_binary_field));
-            reb_save_dp7(&(r->ri_ias15.br),N3,bufp,sizep,&allocatedsize);
-        }
-        {
-            struct reb_binary_field field = {.type = REB_BINARY_FIELD_TYPE_IAS15_ER, .size = sizeof(double)*N3*7};
-            reb_output_stream_write(bufp, &allocatedsize, sizep, &field,sizeof(struct reb_binary_field));
-            reb_save_dp7(&(r->ri_ias15.er),N3,bufp,sizep,&allocatedsize);
-        }
-    }
-    // To output size of binary file, need to calculate it first. 
-    if (r->simulationarchive_version<3){ // to be removed in a future release
-        r->simulationarchive_size_first = (*sizep)+sizeof(struct reb_binary_field)*2+sizeof(long)+sizeof(struct reb_simulationarchive_blob16);
-    }else{
-        r->simulationarchive_size_first = (*sizep)+sizeof(struct reb_binary_field)*2+sizeof(long)+sizeof(struct reb_simulationarchive_blob);
-    }
-    WRITE_FIELD(SASIZEFIRST,        &r->simulationarchive_size_first,   sizeof(long));
+
+    struct reb_binary_field field_functionp;
+    memset(&field_functionp,0,sizeof(struct reb_binary_field));
+    field_functionp.type = 87; // TODO do not hardcode. 
+    field_functionp.size = sizeof(int);
+    reb_output_stream_write(bufp, &allocatedsize, sizep, &field_functionp, sizeof(struct reb_binary_field));
+    reb_output_stream_write(bufp, &allocatedsize, sizep, &functionpointersused, field_functionp.size);
+
     int end_null = 0;
-    WRITE_FIELD(END, &end_null, 0);
-    if (r->simulationarchive_version<3){ // to be removed in a future release
-        struct reb_simulationarchive_blob16 blob = {0};
-        reb_output_stream_write(bufp, &allocatedsize, sizep, &blob, sizeof(struct reb_simulationarchive_blob16));
-    }else{
-        struct reb_simulationarchive_blob blob = {0};
-        reb_output_stream_write(bufp, &allocatedsize, sizep, &blob, sizeof(struct reb_simulationarchive_blob));
-    }
+
+    struct reb_binary_field_descriptor fd_end = reb_binary_field_descriptor_for_name("end");
+    WRITE_FIELD_TYPE(fd_end.type, &end_null, 0);
+    struct reb_simulationarchive_blob blob = {0};
+    reb_output_stream_write(bufp, &allocatedsize, sizep, &blob, sizeof(struct reb_simulationarchive_blob));
 }
 
-void reb_output_binary(struct reb_simulation* r, const char* filename){
-#ifdef MPI
-    char filename_mpi[1024];
-    sprintf(filename_mpi,"%s_%d",filename,r->mpi_id);
-    FILE* of = fopen(filename_mpi,"wb"); 
-#else // MPI
-    FILE* of = fopen(filename,"wb"); 
-#endif // MPI
-    if (of==NULL){
-        reb_error(r, "Can not open file.");
-        return;
-    }
-    char* bufp;
-    size_t sizep;
-    reb_output_binary_to_stream(r, &bufp,&sizep);
-    fwrite(bufp,sizep,1,of);
-    free(bufp);
-    fclose(of);
-}
-
-void reb_output_binary_positions(struct reb_simulation* r, const char* filename){
-    const int N = r->N;
-#ifdef MPI
-    char filename_mpi[1024];
-    sprintf(filename_mpi,"%s_%d",filename,r->mpi_id);
-    FILE* of = fopen(filename_mpi,"wb"); 
-#else // MPI
-    FILE* of = fopen(filename,"wb"); 
-#endif // MPI
-    if (of==NULL){
-        reb_error(r, "Can not open file.");
-        return;
-    }
-    for (int i=0;i<N;i++){
-        struct reb_vec3d v;
-        v.x = r->particles[i].x;
-        v.y = r->particles[i].y;
-        v.z = r->particles[i].z;
-        fwrite(&(v),sizeof(struct reb_vec3d),1,of);
-    }
-    fclose(of);
-}
-
-void reb_output_velocity_dispersion(struct reb_simulation* r, char* filename){
+void reb_simulation_output_velocity_dispersion(struct reb_simulation* r, char* filename){
     const int N = r->N;
     // Algorithm with reduced roundoff errors (see wikipedia)
     struct reb_vec3d A = {.x=0, .y=0, .z=0};
@@ -530,13 +661,12 @@ void reb_output_velocity_dispersion(struct reb_simulation* r, char* filename){
     Q_tot.x = sqrt(Q_tot.x/(double)N_tot);
     Q_tot.y = sqrt(Q_tot.y/(double)N_tot);
     Q_tot.z = sqrt(Q_tot.z/(double)N_tot);
-    FILE* of = fopen(filename,"a"); 
+    FILE* of = fopen(filename,"ab"); 
     if (of==NULL){
-        reb_error(r, "Can not open file.");
+        reb_simulation_error(r, "Can not open file.");
         return;
     }
     fprintf(of,"%e\t%e\t%e\t%e\t%e\t%e\t%e\n",r->t,A_tot.x,A_tot.y,A_tot.z,Q_tot.x,Q_tot.y,Q_tot.z);
     fclose(of);
 }
 
-    

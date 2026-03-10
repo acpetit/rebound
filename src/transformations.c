@@ -31,7 +31,7 @@
 /******************************
  * Jacobi */
 
-void reb_transformations_inertial_to_jacobi_posvel(const struct reb_particle* const particles, struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const int N_active){
+void reb_particles_transform_inertial_to_jacobi_posvel(const struct reb_particle* const particles, struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const unsigned int N_active){
     double eta = p_mass[0].m;
     double s_x = eta * particles[0].x;
     double s_y = eta * particles[0].y;
@@ -80,7 +80,7 @@ void reb_transformations_inertial_to_jacobi_posvel(const struct reb_particle* co
     p_j[0].vz = s_vz * Mtotali;
 }
 
-void reb_transformations_inertial_to_jacobi_posvelacc(const struct reb_particle* const particles, struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const int N_active){
+void reb_particles_transform_inertial_to_jacobi_posvelacc(const struct reb_particle* const particles, struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const unsigned int N_active){
     double eta = p_mass[0].m;
     double s_x = eta * particles[0].x;
     double s_y = eta * particles[0].y;
@@ -144,7 +144,7 @@ void reb_transformations_inertial_to_jacobi_posvelacc(const struct reb_particle*
     p_j[0].az = s_az * Mtotali;
 }
 
-void reb_transformations_inertial_to_jacobi_acc(const struct reb_particle* const particles, struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const int N_active){
+void reb_particles_transform_inertial_to_jacobi_acc(const struct reb_particle* const particles, struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const unsigned int N_active){
     double eta = p_mass[0].m;
     double s_ax = eta * particles[0].ax;
     double s_ay = eta * particles[0].ay;
@@ -175,7 +175,7 @@ void reb_transformations_inertial_to_jacobi_acc(const struct reb_particle* const
     p_j[0].az = s_az * Mtotali;
 }
 
-void reb_transformations_jacobi_to_inertial_posvel(struct reb_particle* const particles, const struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const int N_active){
+void reb_particles_transform_jacobi_to_inertial_posvel(struct reb_particle* const particles, const struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const unsigned int N_active){
     double eta  = p_j[0].m;
     double s_x  = p_j[0].x  * eta;
     double s_y  = p_j[0].y  * eta;
@@ -225,7 +225,7 @@ void reb_transformations_jacobi_to_inertial_posvel(struct reb_particle* const pa
     particles[0].vz = s_vz * mi;
 }
 
-void reb_transformations_jacobi_to_inertial_pos(struct reb_particle* const particles, const struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const int N_active){
+void reb_particles_transform_jacobi_to_inertial_pos(struct reb_particle* const particles, const struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const unsigned int N_active){
     double eta  = p_j[0].m;
     double s_x  = p_j[0].x  * eta;
     double s_y  = p_j[0].y  * eta;
@@ -257,7 +257,7 @@ void reb_transformations_jacobi_to_inertial_pos(struct reb_particle* const parti
     particles[0].z  = s_z  * mi;
 }
 
-void reb_transformations_jacobi_to_inertial_acc(struct reb_particle* const particles, const struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const int N_active){
+void reb_particles_transform_jacobi_to_inertial_acc(struct reb_particle* const particles, const struct reb_particle* const p_j, const struct reb_particle* const p_mass, const unsigned int N, const unsigned int N_active){
     double eta  = p_j[0].m;
     double s_ax  = p_j[0].ax  * eta;
     double s_ay  = p_j[0].ay  * eta;
@@ -292,7 +292,7 @@ void reb_transformations_jacobi_to_inertial_acc(struct reb_particle* const parti
 /******************************
  * WHDS (Hernandez)           */
 
-void reb_transformations_inertial_to_whds_posvel(const struct reb_particle* const particles, struct reb_particle* const p_h, const unsigned int N, const int N_active){
+void reb_particles_transform_inertial_to_whds_posvel(const struct reb_particle* const particles, struct reb_particle* const p_h, const unsigned int N, const unsigned int N_active){
     double x0  = 0.;
     double y0  = 0.;
     double z0  = 0.;
@@ -318,7 +318,7 @@ void reb_transformations_inertial_to_whds_posvel(const struct reb_particle* cons
     p_h[0].vy = vy0/m0;
     p_h[0].vz = vz0/m0;
     p_h[0].m = m0;
-    
+
     m0 = particles[0].m;
 #pragma omp parallel for
     for (unsigned int i=1;i<N_active;i++){
@@ -344,13 +344,13 @@ void reb_transformations_inertial_to_whds_posvel(const struct reb_particle* cons
     }
 }
 
-void reb_transformations_whds_to_inertial_pos(struct reb_particle* const particles, const struct reb_particle* const p_h, const unsigned int N, const int N_active){
+void reb_particles_transform_whds_to_inertial_pos(struct reb_particle* const particles, const struct reb_particle* const p_h, const unsigned int N, const unsigned int N_active){
     // Same as in heliocentric case.
-    reb_transformations_democraticheliocentric_to_inertial_pos(particles, p_h, N, N_active);
+    reb_particles_transform_democraticheliocentric_to_inertial_pos(particles, p_h, N, N_active);
 }
 
-void reb_transformations_whds_to_inertial_posvel(struct reb_particle* const particles, const struct reb_particle* const p_h, const unsigned int N, const int N_active){
-    reb_transformations_whds_to_inertial_pos(particles,p_h,N, N_active);
+void reb_particles_transform_whds_to_inertial_posvel(struct reb_particle* const particles, const struct reb_particle* const p_h, const unsigned int N, const unsigned int N_active){
+    reb_particles_transform_whds_to_inertial_pos(particles,p_h,N, N_active);
     const double m0 = particles[0].m;
 #pragma omp parallel for
     for (unsigned int i=1;i<N_active;i++){
@@ -370,7 +370,7 @@ void reb_transformations_whds_to_inertial_posvel(struct reb_particle* const part
     double vy0  = 0.;
     double vz0  = 0.;
 #pragma omp parallel for reduction(+:vx0) reduction(+:vy0) reduction(+:vz0) 
-    for (int i=1;i<N_active;i++){
+    for (unsigned int i=1;i<N_active;i++){
         double m = particles[i].m;
         vx0 += p_h[i].vx*m/(m0+m);
         vy0 += p_h[i].vy*m/(m0+m);
@@ -385,7 +385,7 @@ void reb_transformations_whds_to_inertial_posvel(struct reb_particle* const part
  * Democratic heliocentric.   *
  * Duncan, Levison & Lee 1998 */
 
-void reb_transformations_inertial_to_democraticheliocentric_posvel(const struct reb_particle* const particles, struct reb_particle* const p_h, const unsigned int N, const int N_active){
+void reb_particles_transform_inertial_to_democraticheliocentric_posvel(const struct reb_particle* const particles, struct reb_particle* const p_h, const unsigned int N, const unsigned int N_active){
     double x0  = 0.;
     double y0  = 0.;
     double z0  = 0.;
@@ -394,7 +394,7 @@ void reb_transformations_inertial_to_democraticheliocentric_posvel(const struct 
     double vz0 = 0.;
     double m0  = 0.;
 #pragma omp parallel for reduction(+:x0) reduction(+:y0) reduction(+:z0) reduction(+:vx0) reduction(+:vy0) reduction(+:vz0) reduction(+:m0)
-    for (int i=0;i<N_active;i++){
+    for (unsigned int i=0;i<N_active;i++){
         double m = particles[i].m;
         x0  += particles[i].x *m;
         y0  += particles[i].y *m;
@@ -411,7 +411,7 @@ void reb_transformations_inertial_to_democraticheliocentric_posvel(const struct 
     p_h[0].vy = vy0/m0;
     p_h[0].vz = vz0/m0;
     p_h[0].m = m0;
-    
+
 #pragma omp parallel for 
     for (unsigned int i=1;i<N;i++){
         p_h[i].x  = particles[i].x  - particles[0].x ;
@@ -424,13 +424,13 @@ void reb_transformations_inertial_to_democraticheliocentric_posvel(const struct 
     }
 }
 
-void reb_transformations_democraticheliocentric_to_inertial_pos(struct reb_particle* const particles, const struct reb_particle* const p_h, const unsigned int N, const int N_active){
+void reb_particles_transform_democraticheliocentric_to_inertial_pos(struct reb_particle* const particles, const struct reb_particle* const p_h, const unsigned int N, const unsigned int N_active){
     const double mtot = p_h[0].m;
     double x0  = 0.;
     double y0  = 0.;
     double z0  = 0.;
 #pragma omp parallel for reduction(+:x0) reduction(+:y0) reduction(+:z0) 
-    for (int i=1;i<N_active;i++){
+    for (unsigned int i=1;i<N_active;i++){
         double m = p_h[i].m;
         x0 += p_h[i].x*m/mtot;
         y0 += p_h[i].y*m/mtot;
@@ -448,8 +448,8 @@ void reb_transformations_democraticheliocentric_to_inertial_pos(struct reb_parti
     }
 }
 
-void reb_transformations_democraticheliocentric_to_inertial_posvel(struct reb_particle* const particles, const struct reb_particle* const p_h, const unsigned int N, const int N_active){
-    reb_transformations_democraticheliocentric_to_inertial_pos(particles,p_h,N,N_active);
+void reb_particles_transform_democraticheliocentric_to_inertial_posvel(struct reb_particle* const particles, const struct reb_particle* const p_h, const unsigned int N, const unsigned int N_active){
+    reb_particles_transform_democraticheliocentric_to_inertial_pos(particles,p_h,N,N_active);
     const double m0 = particles[0].m;
 #pragma omp parallel for 
     for (unsigned int i=1;i<N;i++){
@@ -461,7 +461,7 @@ void reb_transformations_democraticheliocentric_to_inertial_posvel(struct reb_pa
     double vy0  = 0.;
     double vz0  = 0.;
 #pragma omp parallel for reduction(+:vx0) reduction(+:vy0) reduction(+:vz0) 
-    for (int i=1;i<N_active;i++){
+    for (unsigned int i=1;i<N_active;i++){
         double m = particles[i].m;
         vx0 += p_h[i].vx*m/m0;
         vy0 += p_h[i].vy*m/m0;
@@ -472,3 +472,173 @@ void reb_transformations_democraticheliocentric_to_inertial_posvel(struct reb_pa
     particles[0].vz = p_h[0].vz -vz0;
 }
 
+/***************
+ * Barycentric */
+
+void reb_particles_transform_barycentric_to_inertial_pos(struct reb_particle* const particles, const struct reb_particle* const p_b, const unsigned int N, const unsigned int N_active){
+    particles[0].x = p_b[0].m*p_b[0].x;
+    particles[0].y = p_b[0].m*p_b[0].y;
+    particles[0].z = p_b[0].m*p_b[0].z;
+    particles[0].m = p_b[0].m;
+
+    double s_x = 0.0;
+    double s_y = 0.0;
+    double s_z = 0.0;
+    double s_m = 0.0;
+    for (unsigned int i=1; i<N; i++) {
+        particles[i].x = p_b[i].x + p_b[0].x;
+        particles[i].y = p_b[i].y + p_b[0].y;
+        particles[i].z = p_b[i].z + p_b[0].z;
+        if(i < N_active){
+            const double m = p_b[i].m;
+            particles[i].m = m;
+            s_x += particles[i].x*m;
+            s_y += particles[i].y*m;
+            s_z += particles[i].z*m;
+            s_m += m;
+        }
+    }
+    particles[0].x -= s_x;
+    particles[0].y -= s_y;
+    particles[0].z -= s_z;
+    particles[0].m -= s_m;
+    const double m0i = 1./ particles[0].m;
+    particles[0].x *= m0i;
+    particles[0].y *= m0i;
+    particles[0].z *= m0i;
+}
+
+void reb_particles_transform_barycentric_to_inertial_acc(struct reb_particle* const particles, const struct reb_particle* const p_b, const unsigned int N, const unsigned int N_active){
+    particles[0].ax = p_b[0].m*p_b[0].ax;
+    particles[0].ay = p_b[0].m*p_b[0].ay;
+    particles[0].az = p_b[0].m*p_b[0].az;
+    particles[0].m = p_b[0].m;
+
+    double s_ax = 0.0;
+    double s_ay = 0.0;
+    double s_az = 0.0;
+    double s_m = 0.0;
+    for (unsigned int i=1; i<N; i++) {
+        particles[i].ax = p_b[i].ax + p_b[0].ax;
+        particles[i].ay = p_b[i].ay + p_b[0].ay;
+        particles[i].az = p_b[i].az + p_b[0].az;
+        if(i < N_active){
+            const double m = p_b[i].m;
+            particles[i].m = m;
+            s_ax += particles[i].ax*m;
+            s_ay += particles[i].ay*m;
+            s_az += particles[i].az*m;
+            s_m += m;
+        }
+    }
+    particles[0].ax -= s_ax;
+    particles[0].ay -= s_ay;
+    particles[0].az -= s_az;
+    particles[0].m -= s_m;
+    const double m0i = 1./ particles[0].m;
+    particles[0].ax *= m0i;
+    particles[0].ay *= m0i;
+    particles[0].az *= m0i;
+} 
+
+void reb_particles_transform_barycentric_to_inertial_posvel(struct reb_particle* const particles, const struct reb_particle* const p_b, const unsigned int N, const unsigned int N_active){
+    particles[0].x = p_b[0].m*p_b[0].x;
+    particles[0].y = p_b[0].m*p_b[0].y;
+    particles[0].z = p_b[0].m*p_b[0].z;
+    particles[0].vx = p_b[0].m*p_b[0].vx;
+    particles[0].vy = p_b[0].m*p_b[0].vy;
+    particles[0].vz = p_b[0].m*p_b[0].vz;
+    particles[0].m = p_b[0].m;
+
+    double s_x = 0.0;
+    double s_y = 0.0;
+    double s_z = 0.0;
+    double s_vx = 0.0;
+    double s_vy = 0.0;
+    double s_vz = 0.0;
+    double s_m = 0.0;
+    for (unsigned int i=1; i<N; i++) {
+        particles[i].x = p_b[i].x + p_b[0].x;
+        particles[i].y = p_b[i].y + p_b[0].y;
+        particles[i].z = p_b[i].z + p_b[0].z;
+        particles[i].vx = p_b[i].vx + p_b[0].vx;
+        particles[i].vy = p_b[i].vy + p_b[0].vy;
+        particles[i].vz = p_b[i].vz + p_b[0].vz;
+        if(i < N_active) {
+            const double m = p_b[i].m;
+            particles[i].m = m;
+            s_x += particles[i].x*m;
+            s_y += particles[i].y*m;
+            s_z += particles[i].z*m;
+            s_vx += particles[i].vx*m;
+            s_vy += particles[i].vy*m;
+            s_vz += particles[i].vz*m;
+            s_m += m;
+        }
+    }
+    particles[0].x -= s_x;
+    particles[0].y -= s_y;
+    particles[0].z -= s_z;
+    particles[0].vx -= s_vx;
+    particles[0].vy -= s_vy;
+    particles[0].vz -= s_vz;
+    particles[0].m -= s_m;
+    const double m0i = 1./particles[0].m;
+    particles[0].x *= m0i;
+    particles[0].y *= m0i;
+    particles[0].z *= m0i;
+    particles[0].vx *= m0i;
+    particles[0].vy *= m0i;
+    particles[0].vz *= m0i;
+}
+
+void reb_particles_transform_inertial_to_barycentric_posvel(const struct reb_particle* const particles, struct reb_particle* const p_b, const unsigned int N, const unsigned int N_active) {
+    p_b[0].x = particles[0].m*particles[0].x;
+    p_b[0].y = particles[0].m*particles[0].y;
+    p_b[0].z = particles[0].m*particles[0].z;
+    p_b[0].vx = particles[0].m*particles[0].vx;
+    p_b[0].vy = particles[0].m*particles[0].vy;
+    p_b[0].vz = particles[0].m*particles[0].vz;
+    p_b[0].m = particles[0].m;
+
+    double s_x = 0.0;
+    double s_y = 0.0;
+    double s_z = 0.0;
+    double s_vx = 0.0;
+    double s_vy = 0.0;
+    double s_vz = 0.0;
+    double s_m = 0.0;
+    for (unsigned int i = 1; i < N_active; i++) {
+        const double m = particles[i].m;
+        p_b[i].m = m;
+        s_x += particles[i].x*m;
+        s_y += particles[i].y*m;
+        s_z += particles[i].z*m;
+        s_vx += particles[i].vx*m;
+        s_vy += particles[i].vy*m;
+        s_vz += particles[i].vz*m;
+        s_m += m;
+    }
+    p_b[0].x += s_x;
+    p_b[0].y += s_y;
+    p_b[0].z += s_z;
+    p_b[0].vx += s_vx;
+    p_b[0].vy += s_vy;
+    p_b[0].vz += s_vz;
+    p_b[0].m += s_m;
+    const double mi = 1.0 / p_b[0].m;
+    p_b[0].x *= mi;
+    p_b[0].y *= mi;
+    p_b[0].z *= mi;
+    p_b[0].vx *= mi;
+    p_b[0].vy *= mi;
+    p_b[0].vz *= mi;
+    for (unsigned int i = 1;i<N;i++) {
+        p_b[i].x = particles[i].x - p_b[0].x;
+        p_b[i].y = particles[i].y - p_b[0].y;
+        p_b[i].z = particles[i].z - p_b[0].z;
+        p_b[i].vx = particles[i].vx - p_b[0].vx;
+        p_b[i].vy = particles[i].vy - p_b[0].vy;
+        p_b[i].vz = particles[i].vz - p_b[0].vz;
+    }
+}

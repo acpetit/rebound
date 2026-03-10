@@ -1,6 +1,5 @@
 import rebound
 import unittest
-import rebound.data as data
 
 class TestAdditionalForces(unittest.TestCase):
     def test_af_ias15(self):
@@ -41,7 +40,7 @@ class TestAdditionalForces(unittest.TestCase):
     def test_af_mercurius_closeencounter(self):
         sim = rebound.Simulation()
         sim.integrator = "mercurius"
-        sim.ri_mercurius.hillfac = 100000 # make sure encounter happens
+        sim.ri_mercurius.r_crit_hill = 100000 # make sure encounter happens
         sim.dt = 0.005
         sim.force_is_velocity_dependent = 1
         sim.add(m=1)

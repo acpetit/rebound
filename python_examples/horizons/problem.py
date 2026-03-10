@@ -7,12 +7,7 @@ import os.path
 import os
 filename = "cache.bin"
 
-if 'TRAVIS' in os.environ:
-    # Shorter built time
-    solar_system_objects = ["Sun", "Mercury"]
-else:
-    # More planets
-    solar_system_objects = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "C/2014 Q2"]
+solar_system_objects = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "C/2014 Q2"]
 
 if os.path.isfile(filename):
     # Try to load simulation from file
@@ -23,7 +18,7 @@ else:
     try:
         sim.add(solar_system_objects)
     except socket.error:
-        print("A socket error occured. Maybe Horizons is down?")
+        print("A socket error occurred. Maybe Horizons is down?")
         sys.exit(0) # we ignore the error and exit
 
     sim.move_to_com()
@@ -31,8 +26,8 @@ else:
     sim.integrator = "whfast"
     sim.set_dt = 0.01
     # Let's save it for next time
-    # Note: sim.save() only saves the particle data, not the integrator settings, etc.
-    sim.save(filename)  
+    # Note: sim.save_to_file() only saves the particle data, not the integrator settings, etc.
+    sim.save_to_file(filename)  
 
 sim.status()
 

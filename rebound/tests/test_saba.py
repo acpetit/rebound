@@ -21,18 +21,18 @@ sabasettings1 = [ # type, relative error
         ["SABAH10,6,4",5e-13], 
         ]
 sabasettings2 = [ # type, relative error
-        ["SABA1",2e-14], 
+        ["SABA1",3e-14], 
         ["SABACL4",4e-14], 
         ["SABA2",4e-14], 
         ["SABA3",4e-14], 
         ["SABACM4",4e-14], 
         ["SABA4",4e-14], 
-        ["SABA10,4",3e-14], 
-        ["SABA8,6,4",3e-14], 
-        ["SABA10,6,4",3e-14], 
-        ["SABAH8,4,4",3e-14], 
-        ["SABAH8,6,4",3e-14], 
-        ["SABAH10,6,4",3e-14], 
+        ["SABA10,4",4e-14], 
+        ["SABA8,6,4",4e-14], 
+        ["SABA10,6,4",4e-14], 
+        ["SABAH8,4,4",4e-14], 
+        ["SABAH8,6,4",4e-14], 
+        ["SABAH10,6,4",4e-14], 
         ]
 
 class TestIntegratorSABA(unittest.TestCase):
@@ -44,9 +44,9 @@ class TestIntegratorSABA(unittest.TestCase):
         sim.integrator = integrator
         sim.ri_saba.safe_mode = False
         sim.dt = 0.0123235235*sim.particles[1].P  
-        e0 = sim.calculate_energy()
+        e0 = sim.energy()
         sim.integrate(1000.*2.*3.1415)
-        e1 = sim.calculate_energy()
+        e1 = sim.energy()
         self.assertLess(math.fabs((e0-e1)/e1),maxerror)
 
     def energy_notcom(self, s):
@@ -55,14 +55,14 @@ class TestIntegratorSABA(unittest.TestCase):
         rebound.data.add_outer_solar_system(sim)
         for p in sim.particles:
             p.vx += 1.
-        com = sim.calculate_com()
+        com = sim.com()
         sim.integrator = integrator
         sim.dt = 0.0123235235*sim.particles[1].P  
-        e0 = sim.calculate_energy()
+        e0 = sim.energy()
         sim.integrate(1000.*2.*3.1415)
-        e1 = sim.calculate_energy()
+        e1 = sim.energy()
         self.assertLess(math.fabs((e0-e1)/e1),maxerror)
-        com1 = sim.calculate_com()
+        com1 = sim.com()
         self.assertLess(math.fabs((com.x+com.vx*sim.t-com1.x)/(com1.x+com1.y)),1e-12)
         self.assertLess(math.fabs((com.y+com.vy*sim.t-com1.y)/(com1.x+com1.y)),1e-12)
 

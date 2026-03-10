@@ -9,17 +9,15 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <math.h>
 #include "rebound.h"
-#include "tools.h"
 
 int main(int argc, char* argv[]){
-    struct reb_simulation* r = reb_create_simulation();
+    struct reb_simulation* r = reb_simulation_create();
     
     struct reb_particle p; 
     p.m      = 1.;    
-    reb_add(r, p); 
+    reb_simulation_add(r, p); 
 
     // Adding a particle with orbital elements requires the following 7 things
     // There's more flexibility in python for passing different orbital elements
@@ -35,10 +33,10 @@ int main(int argc, char* argv[]){
     double omega = 0.5;
     double f = 0.6;
 
-    struct reb_particle p2 = reb_tools_orbit_to_particle(r->G, primary, m, a, e, inc, Omega, omega, f);
-    reb_add(r,p2);
+    struct reb_particle p2 = reb_particle_from_orbit(r->G, primary, m, a, e, inc, Omega, omega, f);
+    reb_simulation_add(r,p2);
 
-    struct reb_orbit o= reb_tools_particle_to_orbit(r->G, r->particles[1], r->particles[0]);
+    struct reb_orbit o= reb_orbit_from_particle(r->G, r->particles[1], r->particles[0]);
     
     printf("a = %.16e\n", o.a);
     printf("e = %.16e\n", o.e);
@@ -49,19 +47,19 @@ int main(int argc, char* argv[]){
 
     // There are also versions of the two functions above that let you pass an error integer pointer
     // to diagnose / catch errors.  You can find error codes in the documentation for the functions
-    // at https://rebound.readthedocs.org/
+    // at https://rebound.hanno-rein.de/
     
     int err = 0;
     e = 1.001;
 
-    p2 = reb_tools_orbit_to_particle_err(r->G, primary, m, a, e, inc, Omega, omega, f, &err);
+    p2 = reb_particle_from_orbit_err(r->G, primary, m, a, e, inc, Omega, omega, f, &err);
     if(err == 3){            // error code for bound orbit with e > 1
         e = 1.-1.e-15;        // set to just less than 1
-        p2 = reb_tools_orbit_to_particle_err(r->G, primary, m, a, e, inc, Omega, omega, f, &err);
+        p2 = reb_particle_from_orbit_err(r->G, primary, m, a, e, inc, Omega, omega, f, &err);
     }
-    reb_add(r,p2);
+    reb_simulation_add(r,p2);
     
-    o= reb_tools_particle_to_orbit(r->G, r->particles[2], r->particles[0]);
+    o= reb_orbit_from_particle(r->G, r->particles[2], r->particles[0]);
 
     printf("\n\na = %.16e\n", o.a);
     printf("e = %.16e\n", o.e);
@@ -69,4 +67,6 @@ int main(int argc, char* argv[]){
     printf("Omega = %.16e\n", o.Omega);
     printf("omega = %.16e\n", o.omega);
     printf("f = %.16e\n", o.f);
+
+    reb_simulation_free(r);
 }

@@ -423,11 +423,12 @@ if ipywidgets_major_version<7:
 
 from ipywidgets import DOMWidget
 import traitlets
-import math
 import base64
 import sys
-from ctypes import c_float, byref, create_string_buffer, c_int, c_char, pointer
+from ctypes import byref, c_int, c_char, pointer
 from . import clibrebound
+from .simulation import VISUALIZATIONS
+
 def savescreenshot(change):
     if len(change["new"]) and change["type"] =="change":
         w = change["owner"]
@@ -443,6 +444,9 @@ def savescreenshot(change):
             nexttime = w.times[w.screenshotcount]
             if w.archive:
                 sim = w.archive.getSimulation(w.times[w.screenshotcount],mode=w.mode)
+                sim.visualization = VISUALIZATIONS["webgl"]
+                clibrebound.reb_display_init_data(byref(sim))
+
                 w.refresh(pointer(sim))
             else:
                 w.simp.contents.integrate(w.times[w.screenshotcount])
@@ -524,7 +528,7 @@ class Widget(DOMWidget):
         Manually refreshes a widget.
         
         Note that this function can also be called using the wrapper function of
-        the Simulation object: sim.refreshWidgets(). 
+        the Simulation object: sim.refresh_widgets(). 
         """
 
         if simp is None:
@@ -574,16 +578,16 @@ class Widget(DOMWidget):
             This string will be part of the output filename for each image.
             Follow by a five digit integer and the suffix .png. By default the
             prefix is './screenshot' which outputs images in the current
-            directory with the filnames screenshot00000.png, screenshot00001.png...
+            directory with the filenames screenshot00000.png, screenshot00001.png...
             Note that the prefix can include a directory.
         resetCounter : (bool), optional
             Resets the output counter to 0. 
-        archive : (rebound.SimulationArchive), optional
-            Use a REBOUND SimulationArchive. Thus, instead of integratating the 
-            Simulation from the current time, it will use the SimulationArchive
+        archive : (rebound.Simulationarchive), optional
+            Use a REBOUND Simulationarchive. Thus, instead of integratating the 
+            Simulation from the current time, it will use the Simulationarchive
             to load a snapshot. See examples for usage.
         mode : (string), optional
-            Mode to use when querying the SimulationArchive. See SimulationArchive
+            Mode to use when querying the Simulationarchive. See Simulationarchive
             documentation for details. By default the value is "snapshot".
 
         Examples
@@ -595,7 +599,7 @@ class Widget(DOMWidget):
         >>> sim = rebound.Simulation()
         >>> sim.add(m=1.)
         >>> sim.add(m=1.e-3,x=1.,vy=1.)
-        >>> w = sim.getWidget()
+        >>> w = sim.widget()
         >>> w
 
         The widget should show up. To take a screenshot, simply call 
@@ -646,6 +650,8 @@ class Widget(DOMWidget):
             self.mode = mode
             self.observe(savescreenshot,names="screenshot")
             sim = archive.getSimulation(times[0],mode=mode)
+            sim.visualization = VISUALIZATIONS["webgl"]
+            clibrebound.reb_display_init_data(byref(sim))
             self.refresh(pointer(sim))
             self.screenshotcount += 1 # triggers first screenshot
 

@@ -10,7 +10,7 @@ nav:
     - quickstart_installation.md
     - quickstart_firstexample.md
     - quickstart_whereto.md
-  - "API":
+  - "API Documentation":
     - api.md
     - "Simulation":
       - simulation.md
@@ -30,15 +30,19 @@ nav:
       - collisions.md
       - boundaryconditions.md
       - gravity.md
-    - 'Other concepts':
+    - "Visualization":
+      - visualization.md
+    - "Other concepts":
       - units.md
       - orbitalelements.md
       - simulationarchive.md
       - chaos.md
       - binaryformat.md
+      - namingconvention.md
       - c_randomsamplingfunctions.md
       - c_outputfunctions.md
       - miscellaneous.md
+      - mpi.md
   - "Examples":
     - examples.md
     - "Planetary systems":
@@ -53,19 +57,26 @@ nav:
         - c_examples/kozai.md
         - c_examples/eccentric_orbit.md
         - c_examples/restricted_threebody.md
+        - c_examples/api.md
         - ipython_examples/Horizons.ipynb
         - ipython_examples/Starman.ipynb
+        - ipython_examples/RadialVelocity.ipynb
       - "Close encounters and collisions":
         - c_examples/closeencounter.md
         - c_examples/closeencounter_record.md
         - c_examples/closeencounter_hybrid.md
-        - ipython_examples/HybridIntegrationsWithMercurius.ipynb
+        - ipython_examples/HybridIntegrationsWithTRACE.ipynb
         - ipython_examples/CloseEncounters.ipynb
         - c_examples/mergers.md
         - ipython_examples/User_Defined_Collision_Resolve.ipynb
       - "Orbital elements":
         - c_examples/orbital_elements.md
         - ipython_examples/OrbitalElements.ipynb
+        - c_examples/rotations.md
+        - ipython_examples/Rotations.ipynb
+        - ipython_examples/FrequencyAnalysis.ipynb
+        - c_examples/secular_frequencies.md
+        - c_examples/frequency_analysis.md
       - "Small bodies":
         - c_examples/planetesimal_disk_migration.md
         - c_examples/solar_system_with_testparticles.md
@@ -74,17 +85,22 @@ nav:
       - "Advanced topics":
         - ipython_examples/AdvWHFast.ipynb
         - c_examples/high_order_symplectic.md
+        - c_examples/custom_integrator.md
+        - c_examples/custom_integrator_with_data.md
+        - c_examples/whfast512_solar_system.md
         - ipython_examples/Resonances_of_Jupiters_moons.ipynb
         - ipython_examples/TransitTimingVariations.ipynb
         - ipython_examples/HyperbolicOrbits.ipynb
         - ipython_examples/HighOrderSymplectic.ipynb
         - ipython_examples/EmbeddedOperatorSplittingMethods.ipynb
-    - "Checkpoints and Simulation Archive":
+        - ipython_examples/PoincareSurfaceOfSection.ipynb
+    - "Checkpoints and Simulationarchive":
       - ipython_examples/Checkpoints.ipynb
       - c_examples/simulationarchive.md
       - c_examples/restarting_simulation.md
-      - ipython_examples/SimulationArchive.ipynb
-      - ipython_examples/SimulationArchiveRestart.ipynb
+      - ipython_examples/Simulationarchive.ipynb
+      - ipython_examples/SimulationarchiveRestart.ipynb
+      - c_examples/simulationarchive_fields.md
     - "Variational equations":
       - c_examples/variational_equations.md
       - ipython_examples/VariationalEquations.ipynb
@@ -100,8 +116,14 @@ nav:
       - c_examples/prdrag.md
       - c_examples/circumplanetarydust.md
       - c_examples/planetary_migration.md
+      - c_examples/ode_affecting_nbody.md
       - ipython_examples/Forces.ipynb
-    - "Granular Dynamics":
+    - "Integrating arbitrary ODEs":
+      - c_examples/arbitrary_ode.md
+      - c_examples/ode_affecting_nbody.md
+      - ipython_examples/ChaoticHyperion.ipynb
+      - ipython_examples/IntegratingArbitraryODEs.ipynb
+    - "Granular dynamics":
       - c_examples/bouncing_balls.md
       - c_examples/bouncing_balls_corners.md
       - c_examples/bouncing_string.md
@@ -116,11 +138,14 @@ nav:
       - c_examples/shearing_sheet_mpi.md
       - c_examples/shearing_sheet_diagnostics.md
       - c_examples/overstability.md
+      - c_examples/thermalhysteresis.md
       - ipython_examples/SaturnsRings.ipynb
     - "Visualization":
-      - ipython_examples/WebGLVisualization.ipynb
+      - c_examples/screenshots.md
+      - c_examples/animation_saturns_rings.md
+      - c_examples/animation_solar_system.md
       - ipython_examples/OrbitPlot.ipynb
-      - ipython_examples/ScreenshotsAndMoviesWithWebGL.ipynb
+      - c_examples/simulationarchive_viewer.md
     - "Removing particles":
       - c_examples/removing_particles_from_simulation.md
       - ipython_examples/EscapingParticles.ipynb
@@ -135,6 +160,7 @@ nav:
       - ipython_examples/UniquelyIdentifyingParticlesWithHashes.ipynb
       - ipython_examples/Units.ipynb
       - ipython_examples/Cheartbeat.ipynb
+      - ipython_examples/Holmberg.ipynb
 
 theme:
   name: material
@@ -146,7 +172,8 @@ theme:
 markdown_extensions:
   - admonition
   - def_list
-  - pymdownx.tabbed
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.highlight
   - pymdownx.inlinehilite
   - pymdownx.superfences
@@ -159,8 +186,8 @@ extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js      
 extra:
   social:
-    - icon: fontawesome/brands/twitter
-      link: https://twitter.com/reboundbot
+    - icon: fontawesome/brands/mastodon
+      link: https://botsin.space/@reboundbot
     - icon: fontawesome/brands/github
       link: https://github.com/hannorein/rebound
 
@@ -170,3 +197,9 @@ plugins:
       hooks:
         on_pre_build: "docs.c_examples.generate_c_examples:run"
   - mkdocs-jupyter
+    # Note: Newer version doesn't render math due to a bug. Using mkdocs-jupyter==0.24.7 to fix this for now.
+    # See https://github.com/danielfrg/mkdocs-jupyter/issues/212
+  - mkdocs-video:
+      css_style:
+        width: "48vw"
+        height: "27vw"

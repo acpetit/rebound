@@ -1,6 +1,5 @@
 import rebound
 import unittest
-import math 
 from ctypes import c_uint32
 
 class TestHash(unittest.TestCase):
@@ -34,7 +33,7 @@ class TestHash(unittest.TestCase):
         self.sim.add(a=30.)
         self.sim.remove(0)
         self.sim.remove(0)
-        self.sim.remove(hash=rebound.hash("earth"), keepSorted=0)
+        self.sim.remove(hash=rebound.hash("earth"), keep_sorted=0)
         self.assertEqual(self.sim.particles["jupiter"].hash.value, rebound.hash("jupiter").value)
         self.assertEqual(self.sim.N, 2)
         with self.assertRaises(rebound.ParticleNotFound):

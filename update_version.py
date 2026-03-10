@@ -1,6 +1,5 @@
-#!/usr/bin/python
+#!python
 # This script automatically creates a list of examples by reading the header in all problem.c files.
-import glob
 import subprocess
 ghash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
 
@@ -11,14 +10,11 @@ with open("version.txt") as f:
 with open("README.md") as f:
     readme = f.readlines()
 
-keep_lines_after_header = 5
-
 with open("README.md","w") as f:
-    start_delete = -1
     for i in range(0,len(readme)):
-        # [![Version](https://img.shields.io/badge/rebound-v3.17.0-green.svg?style=flat)](https://rebound.readthedocs.org)
+        # [![Version](https://img.shields.io/badge/rebound-v4.4.11-green.svg?style=flat)](https://rebound.hanno-rein.de)
         if "![Version]" in readme[i]:
-            readme[i] = "[![Version](https://img.shields.io/badge/rebound-v"+reboundversion+"-green.svg?style=flat)](https://rebound.readthedocs.org)\n"
+            readme[i] = "[![Version](https://img.shields.io/badge/rebound-v"+reboundversion+"-green.svg?style=flat)](https://rebound.hanno-rein.de)\n"
         f.write(readme[i])
 
 with open("src/rebound.c") as f:
@@ -41,15 +37,68 @@ with open("setup.py") as f:
     with open("setup.py", "w") as f:
         f.writelines(setuplines)
 
+with open("web_client/shell_rebound_webgl.html") as f:
+    reboundlines = f.readlines()
+    for i,l in enumerate(reboundlines):
+        if "<!-- VERSIONLINE -->" in l:
+            reboundlines[i] = "                  REBOUND v" + reboundversion + "  <!-- VERSIONLINE -->\n"
+
+    with open("web_client/shell_rebound_webgl.html", "w") as f:
+        f.writelines(reboundlines)
+
+with open("web_client/shell_rebound_console.html") as f:
+    reboundlines = f.readlines()
+    for i,l in enumerate(reboundlines):
+        if "<!-- VERSIONLINE -->" in l:
+            reboundlines[i] = "                  REBOUND v" + reboundversion + "  <!-- VERSIONLINE -->\n"
+
+    with open("web_client/shell_rebound_console.html", "w") as f:
+        f.writelines(reboundlines)
+
+with open("web_client/shell_rebound.html") as f:
+    reboundlines = f.readlines()
+    for i,l in enumerate(reboundlines):
+        if "<!-- VERSIONLINE -->" in l:
+            reboundlines[i] = "                  REBOUND v" + reboundversion + "  <!-- VERSIONLINE -->\n"
+
+    with open("web_client/shell_rebound.html", "w") as f:
+        f.writelines(reboundlines)
+
 shortversion = reboundversion
 while shortversion[-1] != '.':
     shortversion = shortversion[:-1]
     
 shortversion = shortversion[:-1]
 
-print("To commit, copy and paste:")
-print("\ngit commit -a -m \"Updating version to "+reboundversion+"\"")
+# find changelog
+with open("changelog.md") as f:
+    found_start = 0
+    changelog = ""
+    cl = f.readlines()
+    for l in cl:
+        if found_start == 0 and l.startswith("### Version"):
+            if reboundversion in l:
+                found_start = 1
+                continue
+        if found_start == 1 and l.startswith("### Version"):
+            found_start = 2
+        if found_start == 1:
+            changelog += l
+
+if found_start != 2 or len(changelog.strip())<5:
+    raise RuntimeError("Changelog not found")
+
+with open("_changelog.tmp", "w") as f:
+    f.writelines(changelog.strip()+"\n")
+
+print("----")
+print("Changelog:\n")
+print(changelog.strip())
 print("----")
 print("Next:")
-print("python setup.py sdist")
-print("twine upload -r rebound dist/*")
+print("\ngit commit -a -m \"Updating version to "+reboundversion+"\"")
+print("git tag "+reboundversion+" && git push && git push --tags")
+print("gh release create "+reboundversion+" --notes-file _changelog.tmp")
+print("----")
+print("Might also want to push a rebound.html to this release:")
+print("gh release upload "+reboundversion+" web_client/rebound.html")

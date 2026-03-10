@@ -11,9 +11,9 @@ As an example, suppose we use $G=1$, have a central object of mass $M$, and a te
 This scenario can be setup with the following code:
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
-    reb_add_fmt("m", 1.);
-    reb_add_fmt("a", 1.);
+    struct reb_simulation* r = reb_simulation_create();
+    reb_simulation_add_fmt("m", 1.);
+    reb_simulation_add_fmt("a", 1.);
     ```
 === "Python"
     ```python
@@ -30,7 +30,7 @@ $$
 We can confirm this by calculating the orbital period with REBOUND:
 === "C"
     ```c
-    struct reb_orbit o = reb_tools_particle_to_orbit(r->G, r->particles[1], r->particles[0]);
+    struct reb_orbit o = reb_orbit_from_particle(r->G, r->particles[1], r->particles[0]);
     printf("P=%f\n", o.P);
     ```
 === "Python"
@@ -56,7 +56,7 @@ If you prefer to change the value of $G$, you can!
 The following example sets $G$ to its value in SI units:
 === "C"
     ```c
-    struct reb_simulation* r = reb_create_simulation();
+    struct reb_simulation* r = reb_simulation_create();
     r->G = 6.6743e-11; //  m^3 / kg s^2
     ```
 === "Python"
@@ -64,10 +64,10 @@ The following example sets $G$ to its value in SI units:
     sim = rebound.Simulation()
     sim.G = 6.6743e-11 # m^3 / kg s^2
     ```
-From now on, all quantities that have unit of length (semi-major axis, particle radius, etc) are in meters.
-All quantities that have unit of time (timestep, orbital period, etc) are in seconds. 
-All quantities that have unit of mass are in kg.
-All quantities that have unit of velocity are in meter per second.
+From now on, all quantities that have unit of length (semi-major axis, particle radius, etc) need to be specified (and will be output) in meters.
+All quantities that have units of time (timestep, orbital period, etc) need to be specified in seconds. 
+All quantities that have units of mass need to be specified in kg.
+All quantities that have units of velocity need to be specified in meters per second.
 And so on.
 
 ## Convenience methods in python

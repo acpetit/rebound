@@ -2,7 +2,6 @@ import rebound
 import unittest
 import math
 import rebound.data
-import warnings
 
 class TestIntegratorJanus(unittest.TestCase):
     def test_janus_energy(self):
@@ -17,9 +16,9 @@ class TestIntegratorJanus(unittest.TestCase):
             sim.ri_janus.order = o
             sim.ri_janus.scale_pos = 1e-16
             sim.ri_janus.scale_vel = 1e-16
-            e0 = sim.calculate_energy()
+            e0 = sim.energy()
             sim.integrate(1e2)
-            e1 = sim.calculate_energy()
+            e1 = sim.energy()
             self.assertLess(math.fabs((e0-e1)/e1),eps)
     
     def test_janus_reverse(self):
@@ -69,7 +68,7 @@ class TestIntegratorJanus(unittest.TestCase):
             sim.add(m=1e-3,a=2.32323)
             sim.move_to_com()
             sim.dt = 0.25
-            sim.automateSimulationArchive("test.bin",interval=5,deletefile=True)
+            sim.save_to_file("test.bin",interval=5,delete_file=True)
             sim.integrator = "janus"
             sim.ri_janus.order = o
             sim.ri_janus.scale_pos = 1e-16
@@ -84,6 +83,18 @@ class TestIntegratorJanus(unittest.TestCase):
             self.assertEqual(sim.t,sim2.t)
             self.assertEqual(sim.particles[1].x,sim2.particles[1].x)
             
+    def test_janus_invalid_order(self):
+        sim = rebound.Simulation()
+        sim.add(m=1.)
+        sim.add(m=1e-3,a=1.12313)
+        sim.integrator = "janus"
+        sim.ri_janus.order = 2 # valid order
+        sim.integrate(1e1,exact_finish_time=0)
+        sim.reset_integrator()
+        sim.integrator = "janus"
+        sim.ri_janus.order = 12 #invalid order
+        with self.assertRaises(RuntimeError):
+            sim.integrate(1e2,exact_finish_time=0)
             
 
 

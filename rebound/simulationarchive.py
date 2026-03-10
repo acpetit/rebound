@@ -1,36 +1,32 @@
-from ctypes import Structure, c_double, POINTER, c_float, c_int, c_uint, c_uint32, c_int64, c_long, c_ulong, c_ulonglong, c_void_p, c_char_p, CFUNCTYPE, byref, create_string_buffer, addressof, pointer, cast
-from .simulation import Simulation, BINARY_WARNINGS
-from . import clibrebound 
+from ctypes import Structure, c_double, POINTER, c_int, c_int64, c_uint64, c_void_p, c_char_p, byref 
 import os
 import sys
 import math
 import warnings
 
-POINTER_REB_SIM = POINTER(Simulation) 
-
-class SimulationArchive(Structure):
+class Simulationarchive(Structure):
     """
-    SimulationArchive Class.
+    Simulationarchive Class.
 
-    The SimulationArchive is a binary file format which includes all
+    The Simulationarchive is a binary file format which includes all
     settings, constants as well as particle positions and velocities.
     This makes it possible to reproduce a simulation exactly 
-    (down to the last bit). The SimulationArchive allows you to add
+    (down to the last bit). The Simulationarchive allows you to add
     an arbitrary number of snapshots. Simulations can be reconstructed
-    from these snapshots. Since version 2 of the SimulationArchive
+    from these snapshots. Since version 2 of the Simulationarchive
     (Spring 2018), you can change anything in-between snapshots,
     including settings like the integrator, the timestep, the number of
     particles. The file format is efficient in that only data
-    that changed is stored in the SimulationArchive file. This is all
+    that changed is stored in the Simulationarchive file. This is all
     done automatically. All the user has to do is call the function
     to create a snapshot.
-    The SimulationArchive thus allows for fast access to any long-running 
+    The Simulationarchive thus allows for fast access to any long-running 
     simulations. For a full discussion of the functionality see the paper 
     by Rein & Tamayo 2017.
 
     Requirements
     ------------
-    When using the SimulationArchive, the user is responsible for 
+    When using the Simulationarchive, the user is responsible for 
     setting up any additional forces or post-timestep modifications that 
     were  present during the original integration. 
         
@@ -38,7 +34,7 @@ class SimulationArchive(Structure):
     --------
     Here is a simple example:
 
-    >>> sa = rebound.SimulationArchive("archive.bin")
+    >>> sa = rebound.Simulationarchive("archive.bin")
     >>> sim = sa.getSimulation(t=1e6)
     >>> print(sim.particles[1])
     >>> for sim in sa:
@@ -48,24 +44,26 @@ class SimulationArchive(Structure):
     _fields_ = [("_inf", c_void_p),
                 ("_filename", c_char_p),
                 ("version", c_int), 
-                ("size_first", c_long), 
-                ("size_snapshot", c_long), 
+                ("_reb_version_major", c_int), 
+                ("_reb_version_minor", c_int), 
+                ("_reb_version_patch", c_int), 
                 ("auto_interval", c_double), 
                 ("auto_walltime", c_double), 
-                ("auto_step", c_ulonglong), 
-                ("nblobs", c_long), 
-                ("offset", POINTER(c_uint32)), 
+                ("auto_step", c_uint64), 
+                ("nblobs", c_int64), 
+                ("offset", POINTER(c_uint64)), 
                 ("t", POINTER(c_double)) 
                 ]
     def __repr__(self):
-        return '<{0}.{1} object at {2}, nblobs={3}>'.format(self.__module__, type(self).__name__, hex(id(self)), self.nblobs)
+        return '<{0}.{1} object at {2}, nblobs={3}, reb_version={4}.{5}.{6}>'.format(self.__module__, type(self).__name__, hex(id(self)), self.nblobs, self._reb_version_major, self._reb_version_minor, self._reb_version_patch)
 
     def __init__(self,filename,setup=None, setup_args=(), process_warnings=True, reuse_index=None):
         """
         Arguments
         ---------
-        filename : str
-            Filename of the SimulationArchive file to be opened.
+        filename : str or bytes
+            Filename of the Simulationarchive file to be opened.
+            Can also be of type bytes to read from memory (uses fmemopen).
         setup : function
             Function to be called everytime a simulation object is created
             In this function, the user can setup additional forces
@@ -73,10 +71,10 @@ class SimulationArchive(Structure):
             Arguments passed to setup function.
         process_warnings : Bool
             Display warning messages if True (default). Only fail on major errors if set to False.
-        reuse_index : SimulationArchive
-            Useful when loading many large SimulationArchives. After loading the first 
-            SimulationArchive, pass it as this argument when opening other SimulationArchives with the 
-            same shape. Note: SimulationArchive shape must be exactly the same to avoid unexpected
+        reuse_index : Simulationarchive
+            Useful when loading many large Simulationarchives. After loading the first 
+            Simulationarchive, pass it as this argument when opening other Simulationarchives with the 
+            same shape. Note: Simulationarchive shape must be exactly the same to avoid unexpected
             behaviour.
 
         """
@@ -86,34 +84,40 @@ class SimulationArchive(Structure):
         w = c_int(0)
         if reuse_index:
             # Optimized loading
-            clibrebound.reb_read_simulationarchive_with_messages(byref(self),c_char_p(filename.encode("ascii")), byref(reuse_index), byref(w))
+            clibrebound.reb_simulationarchive_create_from_file_with_messages(byref(self),c_char_p(filename.encode("ascii")), byref(reuse_index), byref(w))
+
         else:
-            clibrebound.reb_read_simulationarchive_with_messages(byref(self),c_char_p(filename.encode("ascii")), None, byref(w))
+            clibrebound.reb_simulationarchive_create_from_file_with_messages(byref(self),c_char_p(filename.encode("ascii")), None, byref(w))
         for majorerror, value, message in BINARY_WARNINGS:
             if w.value & value:
                 if majorerror:
                     raise RuntimeError(message)
                 else:  
                     # Just a warning
+                    if value==2: # Version warning. Append version used to save SA to message
+                        sa_version = "%d.%d.%d" %(self._reb_version_major, self._reb_version_minor, self._reb_version_patch)
+                        if sa_version != __version__ and sa_version != "0.0.0":
+                            message += " Binary file was saved with REBOUND Version " + sa_version + "."
+                            message += " You are currently using REBOUND Version " +  __version__ + "."
                     if process_warnings:
                         warnings.warn(message, RuntimeWarning)
-        else:
+        if not process_warnings:
             # Store for later
             self.warnings = w
         if self.nblobs<1:
-            RuntimeError("Something went wrong. SimulationArchive is empty.")
+            RuntimeError("Something went wrong. Simulationarchive is empty.")
         self.tmin = self.t[0]
         self.tmax = self.t[self.nblobs-1]
 
     def __del__(self):
         if self._b_needsfree_ == 1: 
-            clibrebound.reb_free_simulationarchive_pointers(byref(self))
+            clibrebound.reb_simulationarchive_free_pointers(byref(self))
 
     def __str__(self):
         """
-        Returns a string with details of this simulation archive.
+        Returns a string with details of this simulationarchive.
         """
-        return "<rebound.SimulationArchive instance, snapshots={0} >".format(str(len(self)))
+        return '<{0}.{1} object at {2}, nblobs={3}, reb_version={4}.{5}.{6}>'.format(self.__module__, type(self).__name__, hex(id(self)), self.nblobs, self._reb_version_major, self._reb_version_minor, self._reb_version_patch)
 
     def __getitem__(self, key):
         PY3 = sys.version_info[0] == 3
@@ -133,7 +137,7 @@ class SimulationArchive(Structure):
         
         w = c_int(0)
         sim = Simulation()
-        clibrebound.reb_create_simulation_from_simulationarchive_with_messages(byref(sim), byref(self), c_long(key), byref(w))
+        clibrebound.reb_simulation_create_from_simulationarchive_with_messages(byref(sim), byref(self), c_int64(key), byref(w))
         if self.setup:
             self.setup(sim, *self.setup_args)
         for majorerror, value, message in BINARY_WARNINGS:
@@ -144,16 +148,19 @@ class SimulationArchive(Structure):
                     # Just a warning
                     if self.process_warnings:
                         warnings.warn(message, RuntimeWarning)
+        # Also process Simulation Warnings
+        if self.process_warnings:
+            sim.process_messages()
         if sim.ri_eos.is_synchronized==0 or sim.ri_mercurius.is_synchronized==0 or sim.ri_whfast.is_synchronized==0 or sim.ri_mercurius.is_synchronized==0:
-            warnings.warn("The simulation might not be synchronized. You can manually synchronize it by calling sim.integrator_synchronize().", RuntimeWarning)
+            warnings.warn("The simulation might not be synchronized. You can manually synchronize it by calling sim.synchronize().", RuntimeWarning)
 
         return sim
     
     def __setitem__(self, key, value):
-        raise AttributeError("Cannot modify SimulationArchive.")
+        raise AttributeError("Cannot modify Simulationarchive.")
 
     def __delitem__(self, key):
-        raise AttributeError("Cannot modify SimulationArchive.")
+        raise AttributeError("Cannot modify Simulationarchive.")
 
     def __iter__(self):
         for i in range(len(self)):
@@ -191,7 +198,7 @@ class SimulationArchive(Structure):
         Arguments
         ---------
         t : float
-            Requested time. Needs to be within tmin and tmax of this Simulation Archive.
+            Requested time. Needs to be within tmin and tmax of this Simulationarchive.
         mode : str
             This argument determines how close the simulation should be to the requested time.
             There are three options. 
@@ -209,11 +216,11 @@ class SimulationArchive(Structure):
         Examples
         --------
         Here is a simple example on how to load a simulation from a 
-        Simulation Archive file with the `getSimulation` method.
+        Simulationarchive file with the `getSimulation` method.
         As the `mode` argument is set to `close`, the simulation
         will be integrated from the nearest snapshot to the request time.
 
-        >>> sa = rebound.SimulationArchive("archive.bin")
+        >>> sa = rebound.Simulationarchive("archive.bin")
         >>> sim = sa.getSimulation(t=1e6, mode="close")
         >>> print(sim.particles[1])
         >>> for sim in sa:
@@ -226,23 +233,23 @@ class SimulationArchive(Structure):
         bi, bt = self._getSnapshotIndex(t)
         sim = Simulation()
         w = c_int(0)
-        clibrebound.reb_create_simulation_from_simulationarchive_with_messages(byref(sim),byref(self),bi,byref(w))
+        clibrebound.reb_simulation_create_from_simulationarchive_with_messages(byref(sim),byref(self),bi,byref(w))
 
         # Restore function pointers and any additional setup required by the user provided functions
         if self.setup:
             self.setup(sim, *self.setup_args)
 
         if mode=='snapshot':
-            if (sim.integrator=="whfast" and sim.ri_whfast.safe_mode == 1) or (sim.integrator=="saba" and sim.ri_saba.safe_mode == 1):
+            if (sim.integrator=="mercurius" and sim.ri_mercurius.safe_mode == 1) or (sim.integrator=="whfast" and sim.ri_whfast.safe_mode == 1) or (sim.integrator=="saba" and sim.ri_saba.safe_mode == 1):
                 keep_unsynchronized = 0
             sim.ri_whfast.keep_unsynchronized = keep_unsynchronized
             sim.ri_saba.keep_unsynchronized = keep_unsynchronized
-            sim.integrator_synchronize()
+            sim.synchronize()
             return sim
         else:
             if mode=='exact':
                 keep_unsynchronized = 0
-            if (sim.integrator=="whfast" and sim.ri_whfast.safe_mode == 1) or (sim.integrator=="saba" and sim.ri_saba.safe_mode == 1):
+            if (sim.integrator=="mercurius" and sim.ri_mercurius.safe_mode == 1) or (sim.integrator=="whfast" and sim.ri_whfast.safe_mode == 1) or (sim.integrator=="saba" and sim.ri_saba.safe_mode == 1):
                 keep_unsynchronized = 0
             sim.ri_whfast.keep_unsynchronized = keep_unsynchronized
             sim.ri_saba.keep_unsynchronized = keep_unsynchronized
@@ -278,20 +285,20 @@ class SimulationArchive(Structure):
                  coordinates are shifted. If `origin` is an integer
                  then the particle with that index is used as the
                  origin. if `origin` is equal to `com`, then the 
-                 centre of mass is used as the origin. 
+                 center of mass is used as the origin. 
 
 
         Examples
         --------
-        The following example reads in a SimulationArchive and plots
+        The following example reads in a Simulationarchive and plots
         the trajectories as Cubic Bezier Curves. It also plots the 
-        actual datapoints stored in the SimulationArchive. 
-        Note that the SimulationArchive needs to have enough
+        actual datapoints stored in the Simulationarchive. 
+        Note that the Simulationarchive needs to have enough
         datapoints to allow for smooth and reasonable orbits.
 
         >>> from matplotlib.path import Path
         >>> import matplotlib.patches as patches
-        >>> sa = rebound.SimulationArchive("test.bin")
+        >>> sa = rebound.Simulationarchive("test.bin")
         >>> verts, codes = sa.getBezierPaths(origin=0)
         >>> fig, ax = plt.subplots()
         >>> for j in range(sa[0].N):
@@ -326,7 +333,7 @@ class SimulationArchive(Structure):
             if origin is None:
                 shift = (0,0,0,0)
             elif origin == -2:
-                sp = sim.calculate_com()
+                sp = sim.com()
                 shift = (sp.x,sp.y,sp.vx,sp.vy)
             else:
                 sp = sim.particles[origin]
@@ -354,3 +361,6 @@ class SimulationArchive(Structure):
         codes = np.full(Npoints,4,dtype=np.uint8) # Hardcoded 4 = matplotlib.path.Path.CURVE4
         codes[0] = 1 # Hardcoded 1 = matplotlib.path.Path.MOVETO
         return verts, codes
+
+from .simulation import Simulation, BINARY_WARNINGS
+from . import clibrebound, __version__

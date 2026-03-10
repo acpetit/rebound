@@ -25,21 +25,28 @@
 #ifndef _DISPLAY_H
 #define _DISPLAY_H
 
+#ifdef OPENGL
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#define GL_GLEXT_PROTOTYPES
+#define EGL_EGLEXT_PROTOTYPES
+#include <GL/gl.h>
+#include <GLFW/glfw3.h>
+#else // __EMSCRIPTEN__
+#define GLFW_INCLUDE_NONE
+#include "glad.h"
+#endif // __EMSCRIPTEN__
+#include <GLFW/glfw3.h>
+
 struct reb_simulation;
 
-/**
- * @brief Internal function to check if display update is needed.
- */
-void reb_check_for_display_heartbeat(struct reb_simulation* const r);
-
-/**
- * @brief This function initializes OpenGL and starts the run loop.
- * @param data A struct containing all the data needed by the visualization.
- */
 void reb_display_init(struct reb_simulation* const r);
 
 void reb_display_init_data(struct reb_simulation* const r);
-int reb_display_copy_data(struct reb_simulation* const r);
-void reb_display_prepare_data(struct reb_simulation* const r, int orbits);
 
+#ifdef __EMSCRIPTEN__
+void reb_display_keyboard(GLFWwindow* window, int key, int scancode, int action, int mods);
+#endif // __EMSCRIPTEN__
+
+#endif // OPENGL
 #endif

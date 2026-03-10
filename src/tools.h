@@ -38,31 +38,31 @@ struct reb_particles;
 double reb_tools_megno_deltad_delta(struct reb_simulation* const r);
 
 /**
- * @brief Update MEGNO after a successful timestep by adding dY (=ddelta/delta*dt)
+ * @brief Update MEGNO after a successful timestep by adding dY (=ddelta/delta*dt_done)
  * @param r REBOUND simulation to be considered.
  * @param dY Increment for MEGNO Y
  */
-void reb_tools_megno_update(struct reb_simulation* r, double dY);
+void reb_tools_megno_update(struct reb_simulation* r, double dY, double dt_done);
 
 /**
  * @brief Init random number generator based on time and process id.
  */
-void reb_tools_init_srand(struct reb_simulation* r);
+unsigned int reb_tools_get_rand_seed();
 
 /**
  * @brief Convert angles for orbit routines
  */
-double reb_tools_M_to_E(double e, double M);
+double reb_M_to_E(double e, double M);
 
 /**
  * @brief Convert angles for orbit routines
  */
-double reb_tools_M_to_f(double e, double M);
+double reb_M_to_f(double e, double M);
 
 /**
  * @brief Convert angles for orbit routines
  */
-double reb_tools_E_to_f(double e, double M);
+double reb_E_to_f(double e, double M);
 
 /**
  * @brief Kepler solver in Pal coordinates
@@ -78,5 +78,4 @@ void reb_tools_particle_to_pal(double G, struct reb_particle p, struct reb_parti
  * @brief internal function to handle outputs for the Fast Simulation Restarter.
  */
 void reb_fsr_heartbeat(struct reb_simulation* const r);
-
 #endif 	// TOOLS_H

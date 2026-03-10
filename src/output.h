@@ -27,7 +27,6 @@
 struct reb_simulation;
 
 #include <stdio.h>
-void reb_output_binary_to_stream(struct reb_simulation* r, char** bufp, size_t* sizep);
 void reb_output_stream_write(char** bufp, size_t* allocatedsize, size_t* sizep, void* restrict data, size_t size); ///< Replacement for memstream
 
 #ifdef PROFILING
@@ -35,19 +34,19 @@ void reb_output_stream_write(char** bufp, size_t* allocatedsize, size_t* sizep, 
  * Profiling categories
  */
 enum profiling_categories {
-	PROFILING_CAT_INTEGRATOR,
-	PROFILING_CAT_BOUNDARY,
-	PROFILING_CAT_GRAVITY,
-	PROFILING_CAT_COLLISION,
+    PROFILING_CAT_INTEGRATOR, // Counts integrator and gravity part. Gravity part gets subtracted at output. 
+    PROFILING_CAT_BOUNDARY,
+    PROFILING_CAT_GRAVITY,
+    PROFILING_CAT_COLLISION,
 #ifdef OPENGL
-	PROFILING_CAT_VISUALIZATION,
+    PROFILING_CAT_VISUALIZATION,
 #endif // OPENGL
-	PROFILING_CAT_NUM,
+    PROFILING_CAT_NUM,
 };
 void profiling_start(void);
 void profiling_stop(int cat);
-#define PROFILING_START() profiling_start();	///< Start profiling block 
-#define PROFILING_STOP(C) profiling_stop(C);	///< Stop profiling block 
+#define PROFILING_START() profiling_start()	///< Start profiling block 
+#define PROFILING_STOP(C) profiling_stop(C)	///< Stop profiling block 
 #else // PROFILING
 #define PROFILING_START()	///< Start profiling block (dummy, does nothing) 
 #define PROFILING_STOP(C)	///< Stop profiling block (dummy, does nothing)

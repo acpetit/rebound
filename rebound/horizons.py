@@ -1,23 +1,28 @@
 # -*- coding: utf-8 -*-
-
 """
 Pull data from HORIZONS and format it for use as a REBOUND particle. 
 
 """
-from __future__ import print_function
-
 import datetime
 import re
 import warnings
+import sys
+from .units import convert_mass
 
-try:
+HORIZONSBASEURL = "https://ssd.jpl.nasa.gov/api/horizons.api?"
+
+if "pyodide" in sys.modules:
     from urllib.parse import urlencode
-    from urllib.request import urlopen
-except ImportError:
-    from urllib import urlencode
-    from urllib2 import urlopen
-
-__all__ = ["getParticle"]
+    from pyodide.http import open_url as urlopen
+    # Use CORS proxy
+    HORIZONSBASEURL = "https://rebound.hanno-rein.de/api/horizons.api?"
+else:
+    try:
+        from urllib.parse import urlencode
+        from urllib.request import urlopen
+    except ImportError:
+        from urllib import urlencode
+        from urllib2 import urlopen
 
 # Default date for orbital elements is the current time when first particle added, if no date is passed.
 # Cached at the beginning to ensure that all particles are synchronized.
@@ -25,6 +30,8 @@ __all__ = ["getParticle"]
 
 INITDATE = None
 
+# If this variable is set to "unverified" then the SSL context for API requests does not check certificates.
+SSL_CONTEXT = None
 
 def quote(text):
     return "'{}'".format(text)
@@ -40,7 +47,7 @@ def api_request(particle, datestart, dateend, plane):
         "EPHEM_TYPE": quote("VECTORS"),
         "CENTER": quote("@0"),
         "REF_PLANE": quote(plane),
-        "STEP_SIZE": quote("2"),  # not sure what's the unit
+        "STEP_SIZE": quote("2"),  # seconds
         "REF_SYSTEM": quote("J2000"),
         "VEC_CORR": quote("NONE"),
         "OUT_UNITS": quote("KM-S"),
@@ -50,32 +57,47 @@ def api_request(particle, datestart, dateend, plane):
         "VEC_LABELS": quote("NO")
 
     }
-    url = "https://ssd.jpl.nasa.gov/api/horizons.api?" + urlencode(get_params)
+    url =  HORIZONSBASEURL + urlencode(get_params)
     # don't use a context manager for python2 compatibility
-    f = urlopen(url)
-    body = f.read().decode()
+
+    if SSL_CONTEXT == "unverified":
+        import ssl
+        ssl_context = ssl._create_unverified_context()
+    else:
+        ssl_context = None
+    try:
+        f = urlopen(url,context=ssl_context)
+    except Exception as e:
+        raise RuntimeError("An error occurred while accessing NASA HORIZONS. If this is a SSL certificate issue, you can try disabling the certificate verification by setting rebound.horizons.SSL_CONTEXT = 'unverified'.") from e
+
+    if "pyodide" in sys.modules:
+        body = f.read()
+    else:
+        body = f.read().decode()
     f.close()
     return body
 
 
-def getParticle(particle=None, m=None, x=None, y=None, z=None, vx=None, vy=None, vz=None, primary=None, a=None,
+def query_horizons_for_particle(mass_unit=None, particle=None, m=None, x=None, y=None, z=None, vx=None, vy=None, vz=None, primary=None, a=None,
                 anom=None, e=None, omega=None, inc=None, Omega=None, MEAN=None, date=None, plane="ecliptic", hash=0):
     if plane not in ["ecliptic", "frame"]:
         raise AttributeError(
             "Reference plane needs to be either 'ecliptic' or 'frame'. See Horizons for a definition of these coordinate systems.")
-    jd = False
     if date is not None:
         if isinstance(date, datetime.datetime):
             pass
         elif isinstance(date, str):
-            try:
-                if date[0:2] == "JD":
-                    jd = True
-                else:
-                    date = datetime.datetime.strptime(date, "%Y-%m-%d %H:%M")
-            except:
-                raise AttributeError(
-                    "An error occured while calculating the date. Use either YYYY-MM-DD HH:MM or JDxxxxxxx.xxxxxx")
+            if date[0:2] != "JD":
+                formats = ["%Y-%m-%d", "%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"] # allowed formats
+                found_match = False
+                for f in formats:
+                    try:
+                        date = datetime.datetime.strptime(date, f)
+                        found_match = True
+                    except:
+                        continue
+                if found_match == False:
+                    raise AttributeError("An error occurred while calculating the date. Use one "+" or ".join(formats) + " or JDxxxxxxx.xxxxxx")
     # set the cached initialization time if it's not set
     global INITDATE
     if INITDATE is None:
@@ -87,14 +109,12 @@ def getParticle(particle=None, m=None, x=None, y=None, z=None, vx=None, vy=None,
     if isinstance(date, datetime.datetime):
         # date is a datetime object
         datestart = date.strftime("%Y-%m-%d %H:%M:%S")
-        dateend = (date + datetime.timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M")
+        dateend = (date + datetime.timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S")
     else:
-        # Assume date is in JD
+        # Assume date is in JD with format JDxxxxxx.xxxx
         datestart = date
-        if "." in date:  # end date slightly later
-            dateend = date + "1"
-        else:
-            dateend = date + ".1"
+        date_f = float(re.sub("[^0-9\\.]","",date))
+        dateend = "JD%.8f"%(date_f+0.1)
 
     print("Searching NASA Horizons for '{}'... ".format(particle))
     idn = None
@@ -111,6 +131,20 @@ def getParticle(particle=None, m=None, x=None, y=None, z=None, vx=None, vy=None,
 
         made_choice = True
         body = api_request(idn, datestart, dateend, plane)
+    elif "Matching small-bodies" in body:
+        for line in body.split("\n"):
+            try:
+                first_word = line.split()[0]
+            except IndexError:
+                continue
+            if first_word.isdecimal():
+                idn = first_word
+                break
+        if not idn:
+            raise Exception("Error while trying to find object.")
+        made_choice = True
+        body = api_request(idn, datestart, dateend, plane)
+
     lines = body.split("$$SOE")[-1].split("\n")
     p = Particle()
 
@@ -131,7 +165,11 @@ def getParticle(particle=None, m=None, x=None, y=None, z=None, vx=None, vy=None,
         else:
             print("Found body (Name could not be detected)")
     if m is not None:
-        p.m = m
+        if mass_unit is not None:
+            p.m = convert_mass(m, mass_unit, "kg")
+        else:
+            ## Assume kg
+            p.m = m
     elif idn is not None:
         try:
             p.m = float(

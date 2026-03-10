@@ -1,6 +1,6 @@
 import rebound
 import unittest
-import os
+import warnings
 
 class TestUnits(unittest.TestCase):
     def setUp(self):
@@ -40,11 +40,27 @@ class TestUnits(unittest.TestCase):
     def test_units_restore(self):
         units = ["au", "msun", "yr2pi"]
         self.sim.units = units 
-        self.sim.save("test.bin")
+        self.sim.save_to_file("test.bin",delete_file=True)
         sim2 = rebound.Simulation("test.bin")
         for i in ["length","time","mass"]:
             self.assertEqual(sim2.units[i], self.sim.units[i])
             self.assertIsNotNone(sim2.units[i])
+
+    def test_units_restore(self):
+        units1 = ["au", "msun", "yr2pi"]
+        units2 = ["au", "mearth", "yr2pi"]
+        
+        sim1 = rebound.Simulation()
+        sim1.units = units1
+
+        sim2 = rebound.Simulation()
+        sim2.units = units2
+
+        sim1.add(m=1)
+
+        with warnings.catch_warnings(record=True) as w:
+            sim2.add(sim1.particles[0])
+            self.assertEqual(1, len(w))
 
 if __name__ == "__main__":
     unittest.main()
